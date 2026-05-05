@@ -25,6 +25,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function defaultPayload(): PrefsPayload {
+  return {
+    version: PREFS_STORAGE_VERSION,
+    prefs: { ...defaultPrefs },
+  };
+}
+
+function clonePrefs(prefs: Prefs): Prefs {
+  return {
+    countInEnabled: prefs.countInEnabled,
+    loopEnabled: prefs.loopEnabled,
+  };
+}
+
 function isPrefs(value: unknown): value is Prefs {
   if (!isRecord(value)) {
     return false;
@@ -40,10 +54,7 @@ function readPayload(storage: Storage): PrefsPayload {
   const rawPayload = storage.getItem(PREFS_STORAGE_KEY);
 
   if (rawPayload === null) {
-    return {
-      version: PREFS_STORAGE_VERSION,
-      prefs: defaultPrefs,
-    };
+    return defaultPayload();
   }
 
   try {
@@ -54,33 +65,24 @@ function readPayload(storage: Storage): PrefsPayload {
       parsed["version"] !== PREFS_STORAGE_VERSION ||
       !isPrefs(parsed["prefs"])
     ) {
-      return {
-        version: PREFS_STORAGE_VERSION,
-        prefs: defaultPrefs,
-      };
+      return defaultPayload();
     }
 
     return {
       version: PREFS_STORAGE_VERSION,
-      prefs: {
-        countInEnabled: parsed["prefs"].countInEnabled,
-        loopEnabled: parsed["prefs"].loopEnabled,
-      },
+      prefs: clonePrefs(parsed["prefs"]),
     };
   } catch {
-    return {
-      version: PREFS_STORAGE_VERSION,
-      prefs: defaultPrefs,
-    };
+    return defaultPayload();
   }
 }
 
-function writePayload(storage: Storage, payload: PrefsPayload) {
+function writePrefs(storage: Storage, prefs: Prefs) {
   storage.setItem(
     PREFS_STORAGE_KEY,
     JSON.stringify({
       version: PREFS_STORAGE_VERSION,
-      prefs: payload.prefs,
+      prefs: clonePrefs(prefs),
     }),
   );
 }
@@ -88,16 +90,10 @@ function writePayload(storage: Storage, payload: PrefsPayload) {
 export function createPrefsStore(storage: Storage): PrefsStore {
   return {
     load() {
-      return readPayload(storage).prefs;
+      return clonePrefs(readPayload(storage).prefs);
     },
     save(prefs) {
-      writePayload(storage, {
-        version: PREFS_STORAGE_VERSION,
-        prefs: {
-          countInEnabled: prefs.countInEnabled,
-          loopEnabled: prefs.loopEnabled,
-        },
-      });
+      writePrefs(storage, prefs);
     },
   };
 }

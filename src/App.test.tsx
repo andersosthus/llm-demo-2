@@ -21,11 +21,11 @@ const { init, playSequence, playbackHandles, previewNote, stop } = vi.hoisted(()
     return handle;
   }),
   playbackHandles: [] as Array<{
-      handle: {
-        setBpm: ReturnType<typeof vi.fn>;
-        setLoopEnabled: ReturnType<typeof vi.fn>;
-        stop: ReturnType<typeof vi.fn>;
-      };
+    handle: {
+      setBpm: ReturnType<typeof vi.fn>;
+      setLoopEnabled: ReturnType<typeof vi.fn>;
+      stop: ReturnType<typeof vi.fn>;
+    };
     options: {
       bpm: number;
       countInEnabled?: boolean;
