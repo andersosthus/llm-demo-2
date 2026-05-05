@@ -1,23 +1,35 @@
 {
   "name": "llm-demo-2",
+  "private": true,
   "version": "1.0.0",
-  "description": "",
-  "homepage": "https://github.com/andersosthus/llm-demo-2#readme",
-  "bugs": {
-    "url": "https://github.com/andersosthus/llm-demo-2/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/andersosthus/llm-demo-2.git"
-  },
-  "license": "ISC",
-  "author": "",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.3.1",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
-    "@ai-hero/sandcastle": "^0.5.7"
+    "@ai-hero/sandcastle": "^0.5.7",
+    "@tailwindcss/vite": "^4.1.13",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "jsdom": "^27.0.1",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "vitest": "^4.0.6"
   }
 }

@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  color: #f5f5f4;
+  background-color: #0c0a09;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+* {
+  box-sizing: border-box;
+}
