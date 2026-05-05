@@ -175,4 +175,71 @@ describe("audioEngine", () => {
     expect(onStep).toHaveBeenCalledTimes(1);
     expect(onStop).toHaveBeenCalledTimes(1);
   });
+
+  it("adds a four-beat count-in before the first sequence step", async () => {
+    const { tone, spies } = createToneDouble();
+    const audioEngine = createAudioEngine(tone);
+    const onStep = vi.fn();
+
+    await audioEngine.playSequence({
+      steps: [{ string: 0, fret: 0 }],
+      bpm: 120,
+      countInEnabled: true,
+      onStep,
+    });
+
+    const scheduled = Array.from(spies.scheduledCallbacks.values())[0];
+
+    expect(scheduled).toBeDefined();
+
+    scheduled!.callback(0);
+    scheduled!.callback(0.5);
+    scheduled!.callback(1);
+    scheduled!.callback(1.5);
+
+    expect(onStep).not.toHaveBeenCalled();
+    expect(spies.triggerAttackRelease).toHaveBeenCalledTimes(4);
+
+    scheduled!.callback(2);
+
+    expect(onStep).toHaveBeenCalledWith(0);
+    expect(spies.triggerAttackRelease).toHaveBeenCalledTimes(5);
+  });
+
+  it("loops the sequence with a one-beat gap instead of stopping", async () => {
+    const { tone, spies } = createToneDouble();
+    const audioEngine = createAudioEngine(tone);
+    const onStep = vi.fn();
+    const onStop = vi.fn();
+
+    await audioEngine.playSequence({
+      steps: [
+        { string: 0, fret: 0 },
+        { string: 0, fret: 3 },
+      ],
+      bpm: 120,
+      loopEnabled: true,
+      onStep,
+      onStop,
+    });
+
+    const scheduled = Array.from(spies.scheduledCallbacks.values())[0];
+
+    expect(scheduled).toBeDefined();
+
+    scheduled!.callback(0);
+    scheduled!.callback(0.5);
+
+    expect(onStep.mock.calls).toEqual([[0], [1]]);
+
+    scheduled!.callback(1);
+
+    expect(onStep.mock.calls).toEqual([[0], [1]]);
+    expect(onStop).not.toHaveBeenCalled();
+
+    scheduled!.callback(1.5);
+
+    expect(onStep.mock.calls).toEqual([[0], [1], [0]]);
+    expect(onStop).not.toHaveBeenCalled();
+  });
 });

@@ -9,6 +9,7 @@ const { init, playSequence, playbackHandles, previewNote, stop } = vi.hoisted(()
   playSequence: vi.fn().mockImplementation(async (options) => {
     const handle = {
       setBpm: vi.fn(),
+      setLoopEnabled: vi.fn(),
       stop: vi.fn(),
     };
 
@@ -20,12 +21,15 @@ const { init, playSequence, playbackHandles, previewNote, stop } = vi.hoisted(()
     return handle;
   }),
   playbackHandles: [] as Array<{
-    handle: {
-      setBpm: ReturnType<typeof vi.fn>;
-      stop: ReturnType<typeof vi.fn>;
-    };
+      handle: {
+        setBpm: ReturnType<typeof vi.fn>;
+        setLoopEnabled: ReturnType<typeof vi.fn>;
+        stop: ReturnType<typeof vi.fn>;
+      };
     options: {
       bpm: number;
+      countInEnabled?: boolean;
+      loopEnabled?: boolean;
       onStep?: (index: number) => void;
       onStop?: () => void;
       steps: Array<{ string: number; fret: number }>;
@@ -312,8 +316,10 @@ describe("App recording flow", () => {
 
     expect(screen.getByRole("button", { name: "Play" })).toBeEnabled();
     expect(screen.getByRole("slider", { name: "Tempo (BPM)" })).toBeEnabled();
-    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "Loop" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Loop" })).toBeEnabled();
 
     fireEvent.click(openECell);
 
@@ -532,6 +538,66 @@ describe("App recording flow", () => {
     expect((screen.getByRole("slider", { name: "Tempo (BPM)" }) as HTMLInputElement).value).toBe(
       "132",
     );
+  });
+
+  it("loads global playback prefs, lets them be toggled, and forwards them into playback", async () => {
+    window.localStorage.setItem(
+      "guitar-app:prefs:v1",
+      JSON.stringify({
+        version: 1,
+        prefs: {
+          countInEnabled: false,
+          loopEnabled: true,
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 100,
+            createdAt: 1_762_345_500_000,
+          },
+        ],
+      }),
+    );
+
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Warmup" }));
+
+    const countInToggle = screen.getByRole("checkbox", { name: "Count-in" });
+    const loopToggle = screen.getByRole("checkbox", { name: "Loop" });
+
+    expect(countInToggle).toBeEnabled();
+    expect(countInToggle).not.toBeChecked();
+    expect(loopToggle).toBeEnabled();
+    expect(loopToggle).toBeChecked();
+
+    fireEvent.click(countInToggle);
+    fireEvent.click(loopToggle);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    await waitFor(() => expect(playSequence).toHaveBeenCalledTimes(1));
+
+    expect(playbackHandles[0]?.options).toMatchObject({
+      bpm: 100,
+      countInEnabled: true,
+      loopEnabled: false,
+    });
+
+    unmount();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Warmup" }));
+
+    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Loop" })).not.toBeChecked();
   });
 
   it("starts playback from a saved row play button, stops on row switch, and disables row play during recording", async () => {

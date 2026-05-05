@@ -26,6 +26,7 @@ import {
   DEFAULT_SEQUENCE_BPM,
   type Sequence,
 } from "./sequenceStore";
+import { createPrefsStore, type Prefs } from "./prefsStore";
 
 function modeTitle(state: RecordingState, isPlaying: boolean) {
   if (isPlaying) {
@@ -80,14 +81,22 @@ interface PlaybackState {
 }
 
 function SelectedSequenceControls({
+  countInEnabled,
   isPlaying,
+  loopEnabled,
+  onCountInChange,
   onBpmChange,
+  onLoopChange,
   onPlay,
   onStop,
   sequence,
 }: {
+  countInEnabled: boolean;
   isPlaying: boolean;
+  loopEnabled: boolean;
+  onCountInChange: (enabled: boolean) => void;
   onBpmChange: (bpm: number) => void;
+  onLoopChange: (enabled: boolean) => void;
   onPlay: () => void;
   onStop: () => void;
   sequence: Sequence;
@@ -118,11 +127,21 @@ function SelectedSequenceControls({
         />
       </label>
       <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-        <input aria-label="Count-in" type="checkbox" checked disabled readOnly />
+        <input
+          aria-label="Count-in"
+          type="checkbox"
+          checked={countInEnabled}
+          onChange={(event) => onCountInChange(event.target.checked)}
+        />
         <span>Count-in</span>
       </label>
       <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-        <input aria-label="Loop" type="checkbox" disabled readOnly />
+        <input
+          aria-label="Loop"
+          type="checkbox"
+          checked={loopEnabled}
+          onChange={(event) => onLoopChange(event.target.checked)}
+        />
         <span>Loop</span>
       </label>
     </>
@@ -131,8 +150,10 @@ function SelectedSequenceControls({
 
 export function App() {
   const [sequenceStore] = useState(() => createSequenceStore(window.localStorage));
+  const [prefsStore] = useState(() => createPrefsStore(window.localStorage));
   const [recordingState, setRecordingState] = useState(initialRecordingState);
   const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
+  const [prefs, setPrefs] = useState<Prefs>(() => prefsStore.load());
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -238,6 +259,8 @@ export function App() {
     const handle = await playSequence({
       steps,
       bpm,
+      countInEnabled: prefs.countInEnabled,
+      loopEnabled: prefs.loopEnabled,
       onStep: (index) => {
         if (playbackRequestIdRef.current !== requestId) {
           return;
@@ -371,6 +394,29 @@ export function App() {
     }
   }
 
+  function updatePrefs(nextPrefs: Prefs) {
+    prefsStore.save(nextPrefs);
+    setPrefs(nextPrefs);
+  }
+
+  function handleCountInChange(enabled: boolean) {
+    updatePrefs({
+      ...prefs,
+      countInEnabled: enabled,
+    });
+  }
+
+  function handleLoopChange(enabled: boolean) {
+    if (isPlaying) {
+      playbackHandleRef.current?.setLoopEnabled(enabled);
+    }
+
+    updatePrefs({
+      ...prefs,
+      loopEnabled: enabled,
+    });
+  }
+
   function hasOtherSequenceNamed(id: string, name: string) {
     const normalizedName = normalizeSequenceName(name);
 
@@ -496,8 +542,12 @@ export function App() {
               {renderRecordingControls()}
               {recordingState.mode === "idle" && selectedSequence !== null ? (
                 <SelectedSequenceControls
+                  countInEnabled={prefs.countInEnabled}
                   isPlaying={Boolean(isSavedPlaybackActive)}
+                  loopEnabled={prefs.loopEnabled}
+                  onCountInChange={handleCountInChange}
                   onBpmChange={handleSelectedSequenceBpmChange}
+                  onLoopChange={handleLoopChange}
                   onPlay={handleSelectedSequencePlay}
                   onStop={stopPlayback}
                   sequence={selectedSequence}

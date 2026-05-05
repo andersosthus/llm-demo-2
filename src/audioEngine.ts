@@ -5,6 +5,10 @@ import type { Step } from "./recordingMachine";
 
 const PREVIEW_DURATION_SECONDS = 0.35;
 const PLAYBACK_SUSTAIN_RATIO = 0.85;
+const COUNT_IN_BEAT_TOTAL = 4;
+const COUNT_IN_CLICK_DURATION_SECONDS = 0.12;
+const COUNT_IN_DOWNBEAT_MIDI = 76;
+const COUNT_IN_BEAT_MIDI = 72;
 
 interface FrequencyLike {
   toNote(): string;
@@ -36,6 +40,8 @@ interface ToneLike {
 interface PlaySequenceOptions {
   steps: Step[];
   bpm: number;
+  countInEnabled?: boolean;
+  loopEnabled?: boolean;
   onStep?: (index: number) => void;
   onStop?: () => void;
 }
@@ -43,11 +49,14 @@ interface PlaySequenceOptions {
 export interface PlaybackHandle {
   stop: () => void;
   setBpm: (bpm: number) => void;
+  setLoopEnabled: (enabled: boolean) => void;
 }
 
 interface ActivePlayback {
   bpm: number;
+  countInBeatsRemaining: number;
   eventId: number | null;
+  loopEnabled: boolean;
   onStep: ((index: number) => void) | undefined;
   onStop: (() => void) | undefined;
   stepIndex: number;
@@ -62,6 +71,7 @@ function stepIntervalSeconds(bpm: number) {
 const noopPlaybackHandle: PlaybackHandle = {
   stop() {},
   setBpm() {},
+  setLoopEnabled() {},
 };
 
 export function createAudioEngine(tone: ToneLike) {
@@ -123,6 +133,13 @@ export function createAudioEngine(tone: ToneLike) {
     }
   }
 
+  function playCountInClick(time: number, beatIndex: number) {
+    const midi = beatIndex === 0 ? COUNT_IN_DOWNBEAT_MIDI : COUNT_IN_BEAT_MIDI;
+    const pitch = tone.Frequency(midi, "midi").toNote();
+
+    getOrCreateSynth().triggerAttackRelease(pitch, COUNT_IN_CLICK_DURATION_SECONDS, time);
+  }
+
   function schedulePlayback(playback: ActivePlayback) {
     const intervalSeconds = stepIntervalSeconds(playback.bpm);
 
@@ -133,7 +150,20 @@ export function createAudioEngine(tone: ToneLike) {
         return;
       }
 
+      if (playback.countInBeatsRemaining > 0) {
+        const beatIndex = COUNT_IN_BEAT_TOTAL - playback.countInBeatsRemaining;
+
+        playCountInClick(time, beatIndex);
+        playback.countInBeatsRemaining -= 1;
+        return;
+      }
+
       if (playback.stepIndex >= playback.steps.length) {
+        if (playback.loopEnabled) {
+          playback.stepIndex = 0;
+          return;
+        }
+
         stopPlayback(playback, true);
         return;
       }
@@ -162,6 +192,8 @@ export function createAudioEngine(tone: ToneLike) {
   async function playSequence({
     steps,
     bpm,
+    countInEnabled = false,
+    loopEnabled = false,
     onStep,
     onStop,
   }: PlaySequenceOptions): Promise<PlaybackHandle> {
@@ -176,7 +208,9 @@ export function createAudioEngine(tone: ToneLike) {
 
     const playback: ActivePlayback = {
       bpm,
+      countInBeatsRemaining: countInEnabled ? COUNT_IN_BEAT_TOTAL : 0,
       eventId: null,
+      loopEnabled,
       onStep,
       onStop,
       stepIndex: 0,
@@ -199,6 +233,13 @@ export function createAudioEngine(tone: ToneLike) {
         playback.bpm = nextBpm;
         clearScheduledPlayback(playback);
         schedulePlayback(playback);
+      },
+      setLoopEnabled(enabled) {
+        if (activePlayback !== playback || playback.stopped) {
+          return;
+        }
+
+        playback.loopEnabled = enabled;
       },
     };
   }
