@@ -169,6 +169,55 @@ describe("App recording flow", () => {
     expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
   });
 
+  it("shows global playback toggles in draft mode, persists them, and uses them for draft playback", async () => {
+    window.localStorage.setItem(
+      "guitar-app:prefs:v1",
+      JSON.stringify({
+        version: 1,
+        prefs: {
+          countInEnabled: false,
+          loopEnabled: true,
+        },
+      }),
+    );
+
+    const { container, unmount } = render(<App />);
+    const firstCell = getFretboardCell(container, 0, 0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    fireEvent.click(firstCell);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+    const countInToggle = screen.getByRole("checkbox", { name: "Count-in" });
+    const loopToggle = screen.getByRole("checkbox", { name: "Loop" });
+
+    expect(countInToggle).not.toBeChecked();
+    expect(loopToggle).toBeChecked();
+
+    fireEvent.click(countInToggle);
+    fireEvent.click(loopToggle);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    await waitFor(() => expect(playSequence).toHaveBeenCalledTimes(1));
+
+    expect(playbackHandles[0]?.options).toMatchObject({
+      bpm: 80,
+      countInEnabled: true,
+      loopEnabled: false,
+      steps: [{ string: 0, fret: 0 }],
+    });
+
+    unmount();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    fireEvent.click(getFretboardCell(document.body, 0, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Loop" })).not.toBeChecked();
+  });
+
   it("saves a draft to localStorage, lists it, and reloads it on a fresh render", () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_762_345_600_000);
     const { container, unmount } = render(<App />);

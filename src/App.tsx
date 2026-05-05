@@ -80,6 +80,41 @@ interface PlaybackState {
   source: PlaybackSource;
 }
 
+function PlaybackPreferenceToggles({
+  countInEnabled,
+  loopEnabled,
+  onCountInChange,
+  onLoopChange,
+}: {
+  countInEnabled: boolean;
+  loopEnabled: boolean;
+  onCountInChange: (enabled: boolean) => void;
+  onLoopChange: (enabled: boolean) => void;
+}) {
+  return (
+    <>
+      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+        <input
+          aria-label="Count-in"
+          type="checkbox"
+          checked={countInEnabled}
+          onChange={(event) => onCountInChange(event.target.checked)}
+        />
+        <span>Count-in</span>
+      </label>
+      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+        <input
+          aria-label="Loop"
+          type="checkbox"
+          checked={loopEnabled}
+          onChange={(event) => onLoopChange(event.target.checked)}
+        />
+        <span>Loop</span>
+      </label>
+    </>
+  );
+}
+
 function SelectedSequenceControls({
   countInEnabled,
   isPlaying,
@@ -126,24 +161,12 @@ function SelectedSequenceControls({
           onChange={(event) => onBpmChange(Number(event.target.value))}
         />
       </label>
-      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-        <input
-          aria-label="Count-in"
-          type="checkbox"
-          checked={countInEnabled}
-          onChange={(event) => onCountInChange(event.target.checked)}
-        />
-        <span>Count-in</span>
-      </label>
-      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-        <input
-          aria-label="Loop"
-          type="checkbox"
-          checked={loopEnabled}
-          onChange={(event) => onLoopChange(event.target.checked)}
-        />
-        <span>Loop</span>
-      </label>
+      <PlaybackPreferenceToggles
+        countInEnabled={countInEnabled}
+        loopEnabled={loopEnabled}
+        onCountInChange={onCountInChange}
+        onLoopChange={onLoopChange}
+      />
     </>
   );
 }
@@ -512,6 +535,12 @@ export function App() {
             <Button type="button" onClick={() => setIsSaveDialogOpen(true)}>
               Save
             </Button>
+            <PlaybackPreferenceToggles
+              countInEnabled={prefs.countInEnabled}
+              loopEnabled={prefs.loopEnabled}
+              onCountInChange={handleCountInChange}
+              onLoopChange={handleLoopChange}
+            />
           </>
         );
     }
