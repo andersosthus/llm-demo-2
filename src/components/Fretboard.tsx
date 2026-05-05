@@ -13,11 +13,14 @@ const STRING_SPACING = 34;
 const TOP_PADDING = 32;
 const LEFT_PADDING = 24;
 const NUT_WIDTH = 8;
+const MARKER_COLOR = "#d6b268";
+const STRINGS_IN_RENDER_ORDER = Array.from(STANDARD_TUNING.keys()).reverse();
 
 const svgWidth = LEFT_PADDING + OPEN_AREA_WIDTH + NUT_WIDTH + FRET_COUNT * FRET_WIDTH + 32;
 const svgHeight = TOP_PADDING * 2 + STRING_SPACING * (STANDARD_TUNING.length - 1);
 const boardStartX = LEFT_PADDING + OPEN_AREA_WIDTH + NUT_WIDTH;
 const boardEndX = boardStartX + FRET_COUNT * FRET_WIDTH;
+const fretIndexes = Array.from({ length: FRET_COUNT + 1 }, (_, index) => index);
 
 function yForString(renderIndex: number) {
   return TOP_PADDING + renderIndex * STRING_SPACING;
@@ -31,9 +34,46 @@ function xForFretCenter(fret: number) {
   return boardStartX + (fret - 0.5) * FRET_WIDTH;
 }
 
-export function Fretboard() {
-  const stringsInRenderOrder = [...STANDARD_TUNING.keys()].reverse();
+function renderFretMarker(fret: number) {
+  const x = xForFretCenter(fret);
 
+  if (!isDoubleMarker(fret)) {
+    return [
+      <circle
+        key={`marker-${fret}`}
+        data-marker-type="single"
+        cx={x}
+        cy={svgHeight / 2}
+        r={7}
+        fill={MARKER_COLOR}
+        opacity={0.9}
+      />,
+    ];
+  }
+
+  return [
+    <circle
+      key={`marker-${fret}-upper`}
+      data-marker-type="double"
+      cx={x}
+      cy={svgHeight / 2 - 16}
+      r={7}
+      fill={MARKER_COLOR}
+      opacity={0.9}
+    />,
+    <circle
+      key={`marker-${fret}-lower`}
+      data-marker-type="double"
+      cx={x}
+      cy={svgHeight / 2 + 16}
+      r={7}
+      fill={MARKER_COLOR}
+      opacity={0.9}
+    />,
+  ];
+}
+
+export function Fretboard() {
   return (
     <svg
       role="img"
@@ -50,47 +90,9 @@ export function Fretboard() {
         fill="#1c1917"
       />
 
-      {fretMarkerPositions(FRET_COUNT).flatMap((fret) => {
-        const x = xForFretCenter(fret);
-        const markerColor = "#d6b268";
+      {fretMarkerPositions(FRET_COUNT).flatMap(renderFretMarker)}
 
-        if (!isDoubleMarker(fret)) {
-          return [
-            <circle
-              key={`marker-${fret}`}
-              data-marker-type="single"
-              cx={x}
-              cy={svgHeight / 2}
-              r={7}
-              fill={markerColor}
-              opacity={0.9}
-            />,
-          ];
-        }
-
-        return [
-          <circle
-            key={`marker-${fret}-upper`}
-            data-marker-type="double"
-            cx={x}
-            cy={svgHeight / 2 - 16}
-            r={7}
-            fill={markerColor}
-            opacity={0.9}
-          />,
-          <circle
-            key={`marker-${fret}-lower`}
-            data-marker-type="double"
-            cx={x}
-            cy={svgHeight / 2 + 16}
-            r={7}
-            fill={markerColor}
-            opacity={0.9}
-          />,
-        ];
-      })}
-
-      {Array.from({ length: FRET_COUNT + 1 }, (_, index) => {
+      {fretIndexes.map((index) => {
         const x = boardStartX + index * FRET_WIDTH;
 
         return (
@@ -107,7 +109,7 @@ export function Fretboard() {
         );
       })}
 
-      {stringsInRenderOrder.map((stringIndex, renderIndex) => {
+      {STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => {
         const y = yForString(renderIndex);
         const stringWidth = 1.8 + renderIndex * 0.5;
         const openNote = noteAt(stringIndex, 0);
@@ -139,7 +141,7 @@ export function Fretboard() {
         );
       })}
 
-      {stringsInRenderOrder.map((stringIndex, renderIndex) => {
+      {STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => {
         const y = yForString(renderIndex);
 
         return naturalsForString(stringIndex, FRET_COUNT)

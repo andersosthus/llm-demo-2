@@ -21,9 +21,15 @@ const DOUBLE_MARKERS = new Set([12, 24]);
 export type NoteName = (typeof CHROMATIC_SCALE)[number];
 export type Tuning = readonly number[];
 
+export interface FretboardNote {
+  midi: number;
+  name: NoteName;
+  isNatural: boolean;
+}
+
 export interface NotePosition {
   fret: number;
-  note: ReturnType<typeof noteAt>;
+  note: FretboardNote;
 }
 
 export function isNatural(name: NoteName): boolean {
@@ -34,7 +40,7 @@ export function noteAt(
   stringIndex: number,
   fret: number,
   tuning: Tuning = STANDARD_TUNING,
-) {
+): FretboardNote {
   const openMidi = tuning[stringIndex];
 
   if (openMidi === undefined) {
@@ -46,7 +52,7 @@ export function noteAt(
   }
 
   const midi = openMidi + fret;
-  const name = CHROMATIC_SCALE[midi % CHROMATIC_SCALE.length] as NoteName;
+  const name = CHROMATIC_SCALE[midi % CHROMATIC_SCALE.length]!;
 
   return {
     midi,
