@@ -1,7 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { Fretboard } from "./Fretboard";
+
+const { previewNote } = vi.hoisted(() => ({
+  previewNote: vi.fn(),
+}));
+
+vi.mock("../audioEngine", () => ({
+  previewNote,
+}));
 
 describe("Fretboard", () => {
   it("renders the static fretboard with note labels and standard markers", () => {
@@ -17,5 +25,24 @@ describe("Fretboard", () => {
     expect(doubleMarkers).toHaveLength(4);
     expect(screen.getAllByText("F").length).toBeGreaterThan(0);
     expect(container.querySelector('text[data-note-name="F#"]')).toBeNull();
+  });
+
+  it("previews natural notes on click and leaves sharp cells inert", () => {
+    const { container } = render(<Fretboard />);
+    const naturalCell = container.querySelector(
+      '[data-fretboard-cell="true"][data-string-index="0"][data-fret="0"]',
+    );
+    const sharpCell = container.querySelector(
+      '[data-fretboard-cell="true"][data-string-index="0"][data-fret="2"]',
+    );
+
+    expect(naturalCell).not.toBeNull();
+    expect(sharpCell).not.toBeNull();
+
+    fireEvent.click(naturalCell!);
+    fireEvent.click(sharpCell!);
+
+    expect(previewNote).toHaveBeenCalledTimes(1);
+    expect(previewNote).toHaveBeenCalledWith(0, 0);
   });
 });
