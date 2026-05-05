@@ -48,6 +48,24 @@ function normalizeName(name: string) {
   return name.trim().toLocaleLowerCase();
 }
 
+function trimmedNameOrNull(name: string) {
+  const trimmedName = name.trim();
+
+  return trimmedName.length === 0 ? null : trimmedName;
+}
+
+function hasSequenceNamed(sequences: Sequence[], name: string, ignoredId?: string) {
+  const normalizedName = normalizeName(name);
+
+  return sequences.some((sequence) => {
+    if (sequence.id === ignoredId) {
+      return false;
+    }
+
+    return normalizeName(sequence.name) === normalizedName;
+  });
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -134,7 +152,7 @@ function writePayload(storage: Storage, payload: SequencePayload) {
   );
 }
 
-function replaceSequences(
+function updateSequences(
   storage: Storage,
   update: (sequences: Sequence[]) => Sequence[] | null,
 ): boolean {
@@ -159,16 +177,14 @@ export function createSequenceStore(storage: Storage): SequenceStore {
       return readPayload(storage).sequences.map(cloneSequence);
     },
     save(sequence) {
-      const trimmedName = sequence.name.trim();
+      const trimmedName = trimmedNameOrNull(sequence.name);
 
-      if (trimmedName.length === 0) {
+      if (trimmedName === null) {
         return false;
       }
 
-      return replaceSequences(storage, (sequences) => {
-        const normalizedName = normalizeName(trimmedName);
-
-        if (sequences.some((entry) => normalizeName(entry.name) === normalizedName)) {
+      return updateSequences(storage, (sequences) => {
+        if (hasSequenceNamed(sequences, trimmedName)) {
           return null;
         }
 
@@ -176,7 +192,7 @@ export function createSequenceStore(storage: Storage): SequenceStore {
       });
     },
     delete(id) {
-      return replaceSequences(storage, (sequences) => {
+      return updateSequences(storage, (sequences) => {
         const nextSequences = sequences.filter((sequence) => sequence.id !== id);
 
         if (nextSequences.length === sequences.length) {
@@ -187,27 +203,20 @@ export function createSequenceStore(storage: Storage): SequenceStore {
       });
     },
     rename(id, newName) {
-      const trimmedName = newName.trim();
+      const trimmedName = trimmedNameOrNull(newName);
 
-      if (trimmedName.length === 0) {
+      if (trimmedName === null) {
         return false;
       }
 
-      return replaceSequences(storage, (sequences) => {
+      return updateSequences(storage, (sequences) => {
         const target = sequences.find((sequence) => sequence.id === id);
 
         if (target === undefined) {
           return null;
         }
 
-        const normalizedName = normalizeName(trimmedName);
-
-        if (
-          sequences.some(
-            (sequence) =>
-              sequence.id !== id && normalizeName(sequence.name) === normalizedName,
-          )
-        ) {
+        if (hasSequenceNamed(sequences, trimmedName, id)) {
           return null;
         }
 
@@ -217,7 +226,7 @@ export function createSequenceStore(storage: Storage): SequenceStore {
       });
     },
     updateBpm(id, bpm) {
-      return replaceSequences(storage, (sequences) => {
+      return updateSequences(storage, (sequences) => {
         if (!sequences.some((sequence) => sequence.id === id)) {
           return null;
         }
@@ -228,15 +237,13 @@ export function createSequenceStore(storage: Storage): SequenceStore {
       });
     },
     nameExists(name) {
-      const normalizedName = normalizeName(name);
+      const trimmedName = trimmedNameOrNull(name);
 
-      if (normalizedName.length === 0) {
+      if (trimmedName === null) {
         return false;
       }
 
-      return readPayload(storage).sequences.some(
-        (sequence) => normalizeName(sequence.name) === normalizedName,
-      );
+      return hasSequenceNamed(readPayload(storage).sequences, trimmedName);
     },
   };
 }

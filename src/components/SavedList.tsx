@@ -4,6 +4,21 @@ interface SavedListProps {
   sequences: Sequence[];
 }
 
+const YEAR_RELATIVE_TIME_UNIT = {
+  unit: "year" as const,
+  sizeMs: 31_557_600_000,
+  limitMs: Number.POSITIVE_INFINITY,
+};
+
+const RELATIVE_TIME_UNITS = [
+  { unit: "minute" as const, sizeMs: 60_000, limitMs: 3_600_000 },
+  { unit: "hour" as const, sizeMs: 3_600_000, limitMs: 86_400_000 },
+  { unit: "day" as const, sizeMs: 86_400_000, limitMs: 604_800_000 },
+  { unit: "week" as const, sizeMs: 604_800_000, limitMs: 2_629_800_000 },
+  { unit: "month" as const, sizeMs: 2_629_800_000, limitMs: 31_557_600_000 },
+  YEAR_RELATIVE_TIME_UNIT,
+];
+
 const relativeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 function formatRelativeTime(createdAt: number, now = Date.now()) {
@@ -14,24 +29,12 @@ function formatRelativeTime(createdAt: number, now = Date.now()) {
     return "just now";
   }
 
-  const units = [
-    { unit: "minute" as const, sizeMs: 60_000, limitMs: 3_600_000 },
-    { unit: "hour" as const, sizeMs: 3_600_000, limitMs: 86_400_000 },
-    { unit: "day" as const, sizeMs: 86_400_000, limitMs: 604_800_000 },
-    { unit: "week" as const, sizeMs: 604_800_000, limitMs: 2_629_800_000 },
-    { unit: "month" as const, sizeMs: 2_629_800_000, limitMs: 31_557_600_000 },
-    { unit: "year" as const, sizeMs: 31_557_600_000, limitMs: Number.POSITIVE_INFINITY },
-  ];
+  const matchingUnit = RELATIVE_TIME_UNITS.find(
+    (candidate) => absoluteMs < candidate.limitMs,
+  ) ?? YEAR_RELATIVE_TIME_UNIT;
+  const relativeValue = Math.round(deltaMs / matchingUnit.sizeMs);
 
-  const match = units.find((candidate) => absoluteMs < candidate.limitMs) ?? units.at(-1);
-
-  if (match === undefined) {
-    return "just now";
-  }
-
-  const relativeValue = Math.round(deltaMs / match.sizeMs);
-
-  return relativeFormatter.format(relativeValue, match.unit);
+  return relativeFormatter.format(relativeValue, matchingUnit.unit);
 }
 
 function stepCountLabel(stepCount: number) {

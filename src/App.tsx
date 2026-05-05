@@ -52,13 +52,7 @@ function createSequenceId() {
 }
 
 export function App() {
-  const sequenceStoreRef = useRef<ReturnType<typeof createSequenceStore> | null>(null);
-
-  if (sequenceStoreRef.current === null) {
-    sequenceStoreRef.current = createSequenceStore(window.localStorage);
-  }
-  const sequenceStore = sequenceStoreRef.current;
-
+  const [sequenceStore] = useState(() => createSequenceStore(window.localStorage));
   const [recordingState, setRecordingState] = useState(initialRecordingState);
   const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
