@@ -1,4 +1,5 @@
 import type { Sequence } from "../sequenceStore";
+import { cn } from "../lib/utils";
 
 interface SavedListProps {
   onSelectSequence?: (sequenceId: string) => void;
@@ -70,30 +71,36 @@ export function SavedList({
         </div>
       ) : (
         <ol className="flex flex-col gap-3">
-          {orderedSequences.map((sequence) => (
-            <li key={sequence.id}>
-              <button
-                type="button"
-                aria-pressed={sequence.id === selectedSequenceId}
-                className={[
-                  "w-full rounded-[1.5rem] border px-5 py-4 text-left transition-colors",
-                  sequence.id === selectedSequenceId
-                    ? "border-amber-300/60 bg-amber-400/10"
-                    : "border-stone-800 bg-stone-900/70 hover:border-stone-700 hover:bg-stone-900",
-                ].join(" ")}
-                disabled={!selectionEnabled}
-                onClick={() => onSelectSequence?.(sequence.id)}
-              >
-                <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-                  <p className="text-lg font-semibold text-stone-50">{sequence.name}</p>
-                  <p className="text-sm text-stone-400">{formatRelativeTime(sequence.createdAt)}</p>
-                </div>
-                <p className="mt-2 text-sm text-stone-300">
-                  {stepCountLabel(sequence.steps.length)}
-                </p>
-              </button>
-            </li>
-          ))}
+          {orderedSequences.map((sequence) => {
+            const isSelected = sequence.id === selectedSequenceId;
+
+            return (
+              <li key={sequence.id}>
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  className={cn(
+                    "w-full rounded-[1.5rem] border px-5 py-4 text-left transition-colors",
+                    isSelected
+                      ? "border-amber-300/60 bg-amber-400/10"
+                      : "border-stone-800 bg-stone-900/70 hover:border-stone-700 hover:bg-stone-900",
+                  )}
+                  disabled={!selectionEnabled}
+                  onClick={() => onSelectSequence?.(sequence.id)}
+                >
+                  <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
+                    <p className="text-lg font-semibold text-stone-50">{sequence.name}</p>
+                    <p className="text-sm text-stone-400">
+                      {formatRelativeTime(sequence.createdAt)}
+                    </p>
+                  </div>
+                  <p className="mt-2 text-sm text-stone-300">
+                    {stepCountLabel(sequence.steps.length)}
+                  </p>
+                </button>
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>

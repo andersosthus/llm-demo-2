@@ -51,6 +51,39 @@ function createSequenceId() {
   return globalThis.crypto?.randomUUID?.() ?? `sequence-${Date.now()}-${Math.random()}`;
 }
 
+function SelectedSequenceControls({ sequence }: { sequence: Sequence }) {
+  return (
+    <>
+      <p className="rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100">
+        {sequence.name}
+      </p>
+      <Button type="button" disabled>
+        Play
+      </Button>
+      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+        <span>Tempo</span>
+        <input
+          aria-label="Tempo (BPM)"
+          type="range"
+          min={40}
+          max={240}
+          value={sequence.bpm}
+          disabled
+          readOnly
+        />
+      </label>
+      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+        <input aria-label="Count-in" type="checkbox" checked disabled readOnly />
+        <span>Count-in</span>
+      </label>
+      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+        <input aria-label="Loop" type="checkbox" disabled readOnly />
+        <span>Loop</span>
+      </label>
+    </>
+  );
+}
+
 export function App() {
   const [sequenceStore] = useState(() => createSequenceStore(window.localStorage));
   const [recordingState, setRecordingState] = useState(initialRecordingState);
@@ -241,34 +274,7 @@ export function App() {
             <div className="flex flex-wrap items-center gap-3">
               {renderRecordingControls()}
               {recordingState.mode === "idle" && selectedSequence !== null ? (
-                <>
-                  <p className="rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100">
-                    {selectedSequence.name}
-                  </p>
-                  <Button type="button" disabled>
-                    Play
-                  </Button>
-                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-                    <span>Tempo</span>
-                    <input
-                      aria-label="Tempo (BPM)"
-                      type="range"
-                      min={40}
-                      max={240}
-                      value={selectedSequence.bpm}
-                      disabled
-                      readOnly
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-                    <input aria-label="Count-in" type="checkbox" checked disabled readOnly />
-                    <span>Count-in</span>
-                  </label>
-                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
-                    <input aria-label="Loop" type="checkbox" disabled readOnly />
-                    <span>Loop</span>
-                  </label>
-                </>
+                <SelectedSequenceControls sequence={selectedSequence} />
               ) : null}
             </div>
           </div>
