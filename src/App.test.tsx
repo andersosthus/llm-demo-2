@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
@@ -27,8 +27,13 @@ function getFretboardCell(container: HTMLElement, stringIndex: number, fret: num
 
 describe("App recording flow", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     init.mockClear();
     previewNote.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("returns to idle when stop is pressed without notes", () => {
@@ -92,5 +97,53 @@ describe("App recording flow", () => {
     expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Draft sequence")).not.toBeInTheDocument();
     expect(screen.queryAllByTestId("step-badge")).toHaveLength(0);
+  });
+
+  it("previews draft playback in order and cancels queued notes when cleared", () => {
+    vi.useFakeTimers();
+
+    const { container } = render(<App />);
+    const firstCell = getFretboardCell(container, 0, 0);
+    const secondCell = getFretboardCell(container, 0, 3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    fireEvent.click(firstCell);
+    fireEvent.click(secondCell);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    previewNote.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    expect(previewNote).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(0);
+
+    expect(previewNote).toHaveBeenCalledTimes(1);
+    expect(previewNote).toHaveBeenLastCalledWith(0, 0);
+
+    vi.advanceTimersByTime(424);
+
+    expect(previewNote).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+
+    expect(previewNote).toHaveBeenCalledTimes(2);
+    expect(previewNote).toHaveBeenLastCalledWith(0, 3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    vi.advanceTimersByTime(0);
+
+    expect(previewNote).toHaveBeenCalledTimes(3);
+    expect(previewNote).toHaveBeenLastCalledWith(0, 0);
+
+    vi.advanceTimersByTime(424);
+
+    expect(previewNote).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    vi.advanceTimersByTime(1);
+
+    expect(previewNote).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
   });
 });

@@ -14,6 +14,10 @@ import {
 
 const DRAFT_PREVIEW_INTERVAL_MS = 425;
 
+function shouldClearDraftPreviewQueue(event: RecordingEvent) {
+  return event.type === "CLEAR" || event.type === "SAVE";
+}
+
 function modeTitle(state: RecordingState) {
   switch (state.mode) {
     case "idle":
@@ -58,8 +62,12 @@ export function App() {
 
   function runIntents(intents: RecordingIntent[]) {
     intents.forEach((intent) => {
-      if (intent.type === "playNote") {
-        void previewNote(intent.step.string, intent.step.fret);
+      switch (intent.type) {
+        case "playNote":
+          void previewNote(intent.step.string, intent.step.fret);
+          break;
+        case "persist":
+          break;
       }
     });
   }
@@ -67,7 +75,7 @@ export function App() {
   function dispatch(event: RecordingEvent) {
     const result = reduceRecordingState(recordingStateRef.current, event);
 
-    if (event.type === "CLEAR" || event.type === "SAVE") {
+    if (shouldClearDraftPreviewQueue(event)) {
       clearDraftPreviewQueue();
     }
 
@@ -110,6 +118,50 @@ export function App() {
     });
   }
 
+  function renderRecordingControls() {
+    switch (recordingState.mode) {
+      case "idle":
+        return (
+          <Button type="button" onClick={handleRecordStart}>
+            Record
+          </Button>
+        );
+      case "recording.live":
+        return (
+          <>
+            <Button type="button" onClick={() => dispatch({ type: "STOP" })}>
+              Stop
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => dispatch({ type: "CLEAR" })}
+            >
+              Clear
+            </Button>
+          </>
+        );
+      case "recording.draft":
+        return (
+          <>
+            <Button type="button" onClick={handleDraftPreview}>
+              Play
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => dispatch({ type: "CLEAR" })}
+            >
+              Clear
+            </Button>
+            <Button type="button" disabled>
+              Save
+            </Button>
+          </>
+        );
+    }
+  }
+
   const draftSteps = recordingState.mode === "idle" ? [] : recordingState.steps;
 
   return (
@@ -125,36 +177,7 @@ export function App() {
               <p className="mt-2 text-sm text-stone-300">{modeDescription(recordingState)}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {recordingState.mode === "idle" ? (
-                <Button type="button" onClick={handleRecordStart}>
-                  Record
-                </Button>
-              ) : null}
-
-              {recordingState.mode === "recording.live" ? (
-                <>
-                  <Button type="button" onClick={() => dispatch({ type: "STOP" })}>
-                    Stop
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => dispatch({ type: "CLEAR" })}>
-                    Clear
-                  </Button>
-                </>
-              ) : null}
-
-              {recordingState.mode === "recording.draft" ? (
-                <>
-                  <Button type="button" onClick={handleDraftPreview}>
-                    Play
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => dispatch({ type: "CLEAR" })}>
-                    Clear
-                  </Button>
-                  <Button type="button" disabled>
-                    Save
-                  </Button>
-                </>
-              ) : null}
+              {renderRecordingControls()}
             </div>
           </div>
         </section>

@@ -14,6 +14,8 @@ const TOP_PADDING = 32;
 const LEFT_PADDING = 24;
 const NUT_WIDTH = 8;
 const MARKER_COLOR = "#d6b268";
+const REPEATED_BADGE_OFFSET_X = 7;
+const REPEATED_BADGE_OFFSET_Y = 16;
 const STRINGS_IN_RENDER_ORDER = Array.from(STANDARD_TUNING.keys()).reverse();
 const RENDER_INDEX_BY_STRING = new Map(
   STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => [stringIndex, renderIndex]),
@@ -59,8 +61,8 @@ function badgePosition(step: Step, occurrence: number) {
   }
 
   return {
-    x: xForFretCenter(step.fret) + occurrence * 7,
-    y: yForString(renderIndex) - 20 - occurrence * 16,
+    x: xForFretCenter(step.fret) + occurrence * REPEATED_BADGE_OFFSET_X,
+    y: yForString(renderIndex) - 20 - occurrence * REPEATED_BADGE_OFFSET_Y,
   };
 }
 
@@ -98,12 +100,13 @@ function renderFretCell(
 ) {
   const note = noteAt(stringIndex, fret);
   const { width, x } = fretCellBounds(fret);
-  const handleClick =
-    note.isNatural && onNaturalFretClick
-      ? () => {
-          onNaturalFretClick(stringIndex, fret);
-        }
-      : undefined;
+  let handleClick: (() => void) | undefined;
+
+  if (note.isNatural && onNaturalFretClick !== undefined) {
+    handleClick = () => {
+      onNaturalFretClick(stringIndex, fret);
+    };
+  }
 
   return (
     <g key={`${stringIndex}-${fret}`}>
@@ -130,10 +133,10 @@ function renderStepBadges(stepBadges: Step[]) {
   const occurrencesByPosition = new Map<string, number>();
 
   return stepBadges.map((step, index) => {
-    const key = `${step.string}-${step.fret}`;
-    const occurrence = occurrencesByPosition.get(key) ?? 0;
+    const positionKey = `${step.string}-${step.fret}`;
+    const occurrence = occurrencesByPosition.get(positionKey) ?? 0;
 
-    occurrencesByPosition.set(key, occurrence + 1);
+    occurrencesByPosition.set(positionKey, occurrence + 1);
 
     const { x, y } = badgePosition(step, occurrence);
 
