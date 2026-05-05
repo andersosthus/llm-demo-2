@@ -85,6 +85,16 @@ describe("sequenceStore", () => {
     expect(store.loadAll().map((sequence) => sequence.name)).toEqual(["Warmup", "Arpeggio"]);
   });
 
+  it("treats renaming to the current sequence name as a no-op", () => {
+    const storage = new MemoryStorage();
+    const store = createSequenceStore(storage);
+
+    store.save(createSequence({ id: "sequence-1", name: "Warmup" }));
+
+    expect(store.rename("sequence-1", " warmup ")).toBe(true);
+    expect(store.loadAll()).toEqual([createSequence({ id: "sequence-1", name: "Warmup" })]);
+  });
+
   it("deletes only the targeted sequence", () => {
     const storage = new MemoryStorage();
     const store = createSequenceStore(storage);
