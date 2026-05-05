@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { init, previewNote } from "./audioEngine";
+import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 import { Fretboard } from "./components/Fretboard";
+import { RenameDialog } from "./components/RenameDialog";
 import { SaveDialog } from "./components/SaveDialog";
 import { SavedList } from "./components/SavedList";
 import { SequenceStrip } from "./components/SequenceStrip";
@@ -51,11 +53,17 @@ function createSequenceId() {
   return globalThis.crypto?.randomUUID?.() ?? `sequence-${Date.now()}-${Math.random()}`;
 }
 
+function normalizeSequenceName(name: string) {
+  return name.trim().toLocaleLowerCase();
+}
+
 export function App() {
   const [sequenceStore] = useState(() => createSequenceStore(window.localStorage));
   const [recordingState, setRecordingState] = useState(initialRecordingState);
   const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Sequence | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Sequence | null>(null);
   const recordingStateRef = useRef<RecordingState>(initialRecordingState);
   const previewTimeoutsRef = useRef<number[]>([]);
 
@@ -161,6 +169,56 @@ export function App() {
     return null;
   }
 
+  function hasOtherSequenceNamed(id: string, name: string) {
+    const normalizedName = normalizeSequenceName(name);
+
+    return savedSequences.some((sequence) => {
+      if (sequence.id === id) {
+        return false;
+      }
+
+      return normalizeSequenceName(sequence.name) === normalizedName;
+    });
+  }
+
+  function handleRenameConfirm(name: string) {
+    if (renameTarget === null) {
+      return "Sequence not found.";
+    }
+
+    const trimmedName = name.trim();
+
+    if (trimmedName.length === 0) {
+      return "Enter a sequence name.";
+    }
+
+    if (hasOtherSequenceNamed(renameTarget.id, trimmedName)) {
+      return "A sequence with that name already exists.";
+    }
+
+    if (!sequenceStore.rename(renameTarget.id, trimmedName)) {
+      return "Sequence not found.";
+    }
+
+    setSavedSequences(sequenceStore.loadAll());
+    setRenameTarget(null);
+
+    return null;
+  }
+
+  function handleDeleteConfirm() {
+    if (deleteTarget === null) {
+      return;
+    }
+
+    if (!sequenceStore.delete(deleteTarget.id)) {
+      return;
+    }
+
+    setSavedSequences(sequenceStore.loadAll());
+    setDeleteTarget(null);
+  }
+
   function renderRecordingControls() {
     switch (recordingState.mode) {
       case "idle":
@@ -230,13 +288,29 @@ export function App() {
         </section>
 
         {draftSteps.length > 0 ? <SequenceStrip steps={draftSteps} /> : null}
-        <SavedList sequences={savedSequences} />
+        <SavedList
+          sequences={savedSequences}
+          onRename={(sequence) => setRenameTarget(sequence)}
+          onDelete={(sequence) => setDeleteTarget(sequence)}
+        />
       </div>
 
       <SaveDialog
         open={isSaveDialogOpen}
         onCancel={() => setIsSaveDialogOpen(false)}
         onConfirm={handleSaveConfirm}
+      />
+      <RenameDialog
+        open={renameTarget !== null}
+        sequence={renameTarget}
+        onCancel={() => setRenameTarget(null)}
+        onConfirm={handleRenameConfirm}
+      />
+      <DeleteConfirmDialog
+        open={deleteTarget !== null}
+        sequence={deleteTarget}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
       />
     </main>
   );

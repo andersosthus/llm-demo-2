@@ -240,4 +240,123 @@ describe("App recording flow", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByLabelText("Draft sequence")).toBeInTheDocument();
   });
+
+  it("renames a saved sequence with duplicate validation and persists the new name", () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 80,
+            createdAt: 1_762_345_500_000,
+          },
+          {
+            id: "saved-2",
+            name: "Arpeggio",
+            steps: [
+              { string: 0, fret: 0 },
+              { string: 0, fret: 3 },
+            ],
+            bpm: 90,
+            createdAt: 1_762_345_600_000,
+          },
+        ],
+      }),
+    );
+
+    const { unmount } = render(<App />);
+    const savedList = screen.getByLabelText("Saved sequences");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Arpeggio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Rename sequence" });
+    const nameInput = within(dialog).getByLabelText("Sequence name") as HTMLInputElement;
+
+    expect(nameInput.value).toBe("Arpeggio");
+
+    fireEvent.change(nameInput, { target: { value: " warmup " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rename sequence" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "A sequence with that name already exists.",
+    );
+
+    fireEvent.change(nameInput, { target: { value: "Etude" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rename sequence" }));
+
+    expect(screen.queryByRole("dialog", { name: "Rename sequence" })).not.toBeInTheDocument();
+    expect(within(savedList).getByText("Etude")).toBeInTheDocument();
+    expect(within(savedList).queryByText("Arpeggio")).not.toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+
+    const reloadedList = screen.getByLabelText("Saved sequences");
+
+    expect(within(reloadedList).getByText("Etude")).toBeInTheDocument();
+    expect(within(reloadedList).queryByText("Arpeggio")).not.toBeInTheDocument();
+  });
+
+  it("confirms deletes, preserves the sequence on cancel, and persists confirmed deletes", () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 80,
+            createdAt: 1_762_345_500_000,
+          },
+          {
+            id: "saved-2",
+            name: "Arpeggio",
+            steps: [
+              { string: 0, fret: 0 },
+              { string: 0, fret: 3 },
+            ],
+            bpm: 90,
+            createdAt: 1_762_345_600_000,
+          },
+        ],
+      }),
+    );
+
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Arpeggio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    const dialog = screen.getByRole("alertdialog", { name: "Delete sequence" });
+
+    expect(dialog).toHaveTextContent("Delete Arpeggio?");
+    expect(dialog).toHaveTextContent("2 steps");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("alertdialog", { name: "Delete sequence" })).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Saved sequences")).getByText("Arpeggio")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Arpeggio" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete sequence" }));
+
+    expect(within(screen.getByLabelText("Saved sequences")).queryByText("Arpeggio")).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Saved sequences")).getByText("Warmup")).toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+
+    const reloadedList = screen.getByLabelText("Saved sequences");
+
+    expect(within(reloadedList).getByText("Warmup")).toBeInTheDocument();
+    expect(within(reloadedList).queryByText("Arpeggio")).not.toBeInTheDocument();
+  });
 });

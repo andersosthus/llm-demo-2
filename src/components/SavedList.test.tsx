@@ -1,11 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SavedList } from "./SavedList";
 
 describe("SavedList", () => {
   it("renders the empty helper card when there are no saved sequences", () => {
-    render(<SavedList sequences={[]} />);
+    render(<SavedList sequences={[]} onRename={vi.fn()} onDelete={vi.fn()} />);
 
     expect(
       screen.getByText("No sequences yet. Press Record to create your first exercise."),
@@ -36,6 +36,8 @@ describe("SavedList", () => {
             createdAt: new Date("2026-05-05T11:59:30.000Z").valueOf(),
           },
         ]}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
 
@@ -51,5 +53,35 @@ describe("SavedList", () => {
     expect(rows[1]).toHaveTextContent("2 days ago");
 
     nowSpy.mockRestore();
+  });
+
+  it("opens row actions and forwards rename and delete requests", () => {
+    const onRename = vi.fn();
+    const onDelete = vi.fn();
+    const sequence = {
+      id: "newer",
+      name: "Newest",
+      steps: [
+        { string: 0, fret: 0 },
+        { string: 0, fret: 3 },
+      ],
+      bpm: 100,
+      createdAt: new Date("2026-05-05T11:59:30.000Z").valueOf(),
+    };
+
+    render(<SavedList sequences={[sequence]} onRename={onRename} onDelete={onDelete} />);
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Newest" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+
+    expect(onRename).toHaveBeenCalledWith(sequence);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open actions for Newest" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+
+    expect(onDelete).toHaveBeenCalledWith(sequence);
   });
 });

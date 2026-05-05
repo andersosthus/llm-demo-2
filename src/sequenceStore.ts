@@ -216,6 +216,10 @@ export function createSequenceStore(storage: Storage): SequenceStore {
           return null;
         }
 
+        if (normalizeName(target.name) === normalizeName(trimmedName)) {
+          return sequences;
+        }
+
         if (hasSequenceNamed(sequences, trimmedName, id)) {
           return null;
         }
