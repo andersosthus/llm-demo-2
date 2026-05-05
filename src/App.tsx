@@ -1,27 +1,169 @@
+import { useEffect, useRef, useState } from "react";
+
+import { init, previewNote } from "./audioEngine";
 import { Fretboard } from "./components/Fretboard";
+import { SequenceStrip } from "./components/SequenceStrip";
 import { Button } from "./components/ui/button";
+import {
+  initialRecordingState,
+  reduceRecordingState,
+  type RecordingEvent,
+  type RecordingIntent,
+  type RecordingState,
+} from "./recordingMachine";
+
+const DRAFT_PREVIEW_INTERVAL_MS = 425;
+
+function modeTitle(state: RecordingState) {
+  switch (state.mode) {
+    case "idle":
+      return "Ready to Record";
+    case "recording.live":
+      return "Recording Live";
+    case "recording.draft":
+      return "Draft Sequence";
+  }
+}
+
+function modeDescription(state: RecordingState) {
+  switch (state.mode) {
+    case "idle":
+      return "Click Record to start drafting a sequence in memory.";
+    case "recording.live":
+      return "Every natural-note click previews the pitch and appends a numbered step.";
+    case "recording.draft":
+      return "Review the draft on the neck or preview it before the save flow lands.";
+  }
+}
 
 export function App() {
+  const [recordingState, setRecordingState] = useState(initialRecordingState);
+  const recordingStateRef = useRef<RecordingState>(initialRecordingState);
+  const previewTimeoutsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      previewTimeoutsRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    };
+  }, []);
+
+  function clearDraftPreviewQueue() {
+    previewTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    previewTimeoutsRef.current = [];
+  }
+
+  function runIntents(intents: RecordingIntent[]) {
+    intents.forEach((intent) => {
+      if (intent.type === "playNote") {
+        void previewNote(intent.step.string, intent.step.fret);
+      }
+    });
+  }
+
+  function dispatch(event: RecordingEvent) {
+    const result = reduceRecordingState(recordingStateRef.current, event);
+
+    if (event.type === "CLEAR" || event.type === "SAVE") {
+      clearDraftPreviewQueue();
+    }
+
+    recordingStateRef.current = result.state;
+    setRecordingState(result.state);
+    runIntents(result.intents);
+  }
+
+  function handleRecordStart() {
+    clearDraftPreviewQueue();
+    void init();
+    dispatch({ type: "START_RECORD" });
+  }
+
+  function handleFretClick(stringIndex: number, fret: number) {
+    if (recordingState.mode === "recording.live") {
+      dispatch({
+        type: "APPEND_NOTE",
+        step: { string: stringIndex, fret },
+      });
+      return;
+    }
+
+    void previewNote(stringIndex, fret);
+  }
+
+  function handleDraftPreview() {
+    if (recordingState.mode !== "recording.draft") {
+      return;
+    }
+
+    clearDraftPreviewQueue();
+
+    recordingState.steps.forEach((step, index) => {
+      const timeoutId = window.setTimeout(() => {
+        void previewNote(step.string, step.fret);
+      }, index * DRAFT_PREVIEW_INTERVAL_MS);
+
+      previewTimeoutsRef.current.push(timeoutId);
+    });
+  }
+
+  const draftSteps = recordingState.mode === "idle" ? [] : recordingState.steps;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#1c1917,_#0c0a09_55%)] px-6 py-8 text-stone-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <section className="rounded-3xl border border-amber-400/20 bg-stone-950/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/80">
                 Mode
               </p>
-              <h1 className="font-serif text-2xl text-stone-50">Static Fretboard</h1>
+              <h1 className="font-serif text-2xl text-stone-50">{modeTitle(recordingState)}</h1>
+              <p className="mt-2 text-sm text-stone-300">{modeDescription(recordingState)}</p>
             </div>
-            <Button type="button" disabled>
-              Recording Placeholder
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              {recordingState.mode === "idle" ? (
+                <Button type="button" onClick={handleRecordStart}>
+                  Record
+                </Button>
+              ) : null}
+
+              {recordingState.mode === "recording.live" ? (
+                <>
+                  <Button type="button" onClick={() => dispatch({ type: "STOP" })}>
+                    Stop
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => dispatch({ type: "CLEAR" })}>
+                    Clear
+                  </Button>
+                </>
+              ) : null}
+
+              {recordingState.mode === "recording.draft" ? (
+                <>
+                  <Button type="button" onClick={handleDraftPreview}>
+                    Play
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => dispatch({ type: "CLEAR" })}>
+                    Clear
+                  </Button>
+                  <Button type="button" disabled>
+                    Save
+                  </Button>
+                </>
+              ) : null}
+            </div>
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-stone-700/60 bg-stone-900/85 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-          <Fretboard />
+          <Fretboard onNaturalFretClick={handleFretClick} stepBadges={draftSteps} />
         </section>
+
+        {draftSteps.length > 0 ? <SequenceStrip steps={draftSteps} /> : null}
       </div>
     </main>
   );

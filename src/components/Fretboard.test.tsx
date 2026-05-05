@@ -3,14 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Fretboard } from "./Fretboard";
 
-const { previewNote } = vi.hoisted(() => ({
-  previewNote: vi.fn(),
-}));
-
-vi.mock("../audioEngine", () => ({
-  previewNote,
-}));
-
 function getFretboardCell(container: HTMLElement, stringIndex: number, fret: number) {
   const cell = container.querySelector(
     `[data-fretboard-cell="true"][data-string-index="${stringIndex}"][data-fret="${fret}"]`,
@@ -24,8 +16,10 @@ function getFretboardCell(container: HTMLElement, stringIndex: number, fret: num
 }
 
 describe("Fretboard", () => {
+  const onNaturalFretClick = vi.fn();
+
   beforeEach(() => {
-    previewNote.mockClear();
+    onNaturalFretClick.mockClear();
   });
 
   it("renders the static fretboard with note labels and standard markers", () => {
@@ -43,15 +37,29 @@ describe("Fretboard", () => {
     expect(container.querySelector('text[data-note-name="F#"]')).toBeNull();
   });
 
-  it("previews natural notes on click and leaves sharp cells inert", () => {
-    const { container } = render(<Fretboard />);
+  it("only calls the fret click handler for natural notes", () => {
+    const { container } = render(<Fretboard onNaturalFretClick={onNaturalFretClick} />);
     const naturalCell = getFretboardCell(container, 0, 0);
     const sharpCell = getFretboardCell(container, 0, 2);
 
     fireEvent.click(naturalCell);
     fireEvent.click(sharpCell);
 
-    expect(previewNote).toHaveBeenCalledTimes(1);
-    expect(previewNote).toHaveBeenCalledWith(0, 0);
+    expect(onNaturalFretClick).toHaveBeenCalledTimes(1);
+    expect(onNaturalFretClick).toHaveBeenCalledWith(0, 0);
+  });
+
+  it("renders ordered badges for repeated draft notes", () => {
+    render(
+      <Fretboard
+        stepBadges={[
+          { string: 0, fret: 0 },
+          { string: 0, fret: 3 },
+          { string: 0, fret: 0 },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByTestId("step-badge")).toHaveLength(3);
   });
 });

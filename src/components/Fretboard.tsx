@@ -4,7 +4,7 @@ import {
   isDoubleMarker,
   noteAt,
 } from "../fretboardMath";
-import { previewNote } from "../audioEngine";
+import type { Step } from "../recordingMachine";
 
 const FRET_COUNT = 24;
 const OPEN_AREA_WIDTH = 56;
@@ -15,6 +15,9 @@ const LEFT_PADDING = 24;
 const NUT_WIDTH = 8;
 const MARKER_COLOR = "#d6b268";
 const STRINGS_IN_RENDER_ORDER = Array.from(STANDARD_TUNING.keys()).reverse();
+const RENDER_INDEX_BY_STRING = new Map(
+  STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => [stringIndex, renderIndex]),
+);
 
 const svgWidth = LEFT_PADDING + OPEN_AREA_WIDTH + NUT_WIDTH + FRET_COUNT * FRET_WIDTH + 32;
 const svgHeight = TOP_PADDING * 2 + STRING_SPACING * (STANDARD_TUNING.length - 1);
@@ -48,6 +51,19 @@ function fretCellBounds(fret: number) {
   };
 }
 
+function badgePosition(step: Step, occurrence: number) {
+  const renderIndex = RENDER_INDEX_BY_STRING.get(step.string);
+
+  if (renderIndex === undefined) {
+    throw new RangeError(`String index ${step.string} is out of range.`);
+  }
+
+  return {
+    x: xForFretCenter(step.fret) + occurrence * 7,
+    y: yForString(renderIndex) - 20 - occurrence * 16,
+  };
+}
+
 function renderNaturalNoteLabel(fret: number, y: number, noteName: string) {
   if (fret === 0) {
     return null;
@@ -69,10 +85,25 @@ function renderNaturalNoteLabel(fret: number, y: number, noteName: string) {
   );
 }
 
-function renderFretCell(stringIndex: number, fret: number, y: number) {
+interface FretboardProps {
+  onNaturalFretClick?: (stringIndex: number, fret: number) => void;
+  stepBadges?: Step[];
+}
+
+function renderFretCell(
+  stringIndex: number,
+  fret: number,
+  y: number,
+  onNaturalFretClick?: (stringIndex: number, fret: number) => void,
+) {
   const note = noteAt(stringIndex, fret);
   const { width, x } = fretCellBounds(fret);
-  const handleClick = note.isNatural ? () => void previewNote(stringIndex, fret) : undefined;
+  const handleClick =
+    note.isNatural && onNaturalFretClick
+      ? () => {
+          onNaturalFretClick(stringIndex, fret);
+        }
+      : undefined;
 
   return (
     <g key={`${stringIndex}-${fret}`}>
@@ -93,6 +124,41 @@ function renderFretCell(stringIndex: number, fret: number, y: number) {
       {note.isNatural ? renderNaturalNoteLabel(fret, y, note.name) : null}
     </g>
   );
+}
+
+function renderStepBadges(stepBadges: Step[]) {
+  const occurrencesByPosition = new Map<string, number>();
+
+  return stepBadges.map((step, index) => {
+    const key = `${step.string}-${step.fret}`;
+    const occurrence = occurrencesByPosition.get(key) ?? 0;
+
+    occurrencesByPosition.set(key, occurrence + 1);
+
+    const { x, y } = badgePosition(step, occurrence);
+
+    return (
+      <g
+        key={`badge-${index}-${step.string}-${step.fret}`}
+        data-fret={step.fret}
+        data-step-badge="true"
+        data-string-index={step.string}
+        data-testid="step-badge"
+      >
+        <circle cx={x} cy={y} r={11} fill="#fbbf24" stroke="#451a03" strokeWidth={2} />
+        <text
+          x={x}
+          y={y + 4}
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="700"
+          fill="#1c1917"
+        >
+          {index + 1}
+        </text>
+      </g>
+    );
+  });
 }
 
 function renderFretMarker(fret: number) {
@@ -134,7 +200,7 @@ function renderFretMarker(fret: number) {
   ];
 }
 
-export function Fretboard() {
+export function Fretboard({ onNaturalFretClick, stepBadges = [] }: FretboardProps) {
   return (
     <svg
       role="img"
@@ -205,8 +271,12 @@ export function Fretboard() {
       {STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => {
         const y = yForString(renderIndex);
 
-        return fretIndexes.map((fret) => renderFretCell(stringIndex, fret, y));
+        return fretIndexes.map((fret) =>
+          renderFretCell(stringIndex, fret, y, onNaturalFretClick),
+        );
       })}
+
+      {renderStepBadges(stepBadges)}
     </svg>
   );
 }
