@@ -88,6 +88,7 @@ function renderNaturalNoteLabel(fret: number, y: number, noteName: string) {
 }
 
 interface FretboardProps {
+  activeStepIndex?: number | null;
   onNaturalFretClick?: (stringIndex: number, fret: number) => void;
   stepBadges?: Step[];
 }
@@ -129,7 +130,7 @@ function renderFretCell(
   );
 }
 
-function renderStepBadges(stepBadges: Step[]) {
+function renderStepBadges(stepBadges: Step[], activeStepIndex: number | null) {
   const occurrencesByPosition = new Map<string, number>();
 
   return stepBadges.map((step, index) => {
@@ -149,6 +150,19 @@ function renderStepBadges(stepBadges: Step[]) {
         data-testid="step-badge"
       >
         <circle cx={x} cy={y} r={11} fill="#fbbf24" stroke="#451a03" strokeWidth={2} />
+        {activeStepIndex === index ? (
+          <circle
+            cx={x}
+            cy={y}
+            r={15}
+            fill="#fde68a"
+            opacity={0.2}
+            stroke="#fef3c7"
+            strokeWidth={3}
+            data-step-index={index}
+            data-testid="active-step-badge"
+          />
+        ) : null}
         <text
           x={x}
           y={y + 4}
@@ -203,7 +217,11 @@ function renderFretMarker(fret: number) {
   ];
 }
 
-export function Fretboard({ onNaturalFretClick, stepBadges = [] }: FretboardProps) {
+export function Fretboard({
+  activeStepIndex = null,
+  onNaturalFretClick,
+  stepBadges = [],
+}: FretboardProps) {
   return (
     <svg
       role="img"
@@ -279,7 +297,7 @@ export function Fretboard({ onNaturalFretClick, stepBadges = [] }: FretboardProp
         );
       })}
 
-      {renderStepBadges(stepBadges)}
+      {renderStepBadges(stepBadges, activeStepIndex)}
     </svg>
   );
 }

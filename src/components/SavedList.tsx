@@ -4,7 +4,9 @@ import { cn } from "../lib/utils";
 import type { Sequence } from "../sequenceStore";
 
 interface SavedListProps {
+  onPlaySequence?: (sequenceId: string) => void;
   onSelectSequence?: (sequenceId: string) => void;
+  playEnabled?: boolean;
   selectedSequenceId?: string | null;
   selectionEnabled?: boolean;
   sequences: Sequence[];
@@ -13,10 +15,12 @@ interface SavedListProps {
 }
 
 interface SavedSequenceRowProps {
+  isPlayEnabled: boolean;
   sequence: Sequence;
   isSelected: boolean;
   isSelectionEnabled: boolean;
   isMenuOpen: boolean;
+  onPlay: () => void;
   onSelect: () => void;
   onToggleMenu: () => void;
   onRename: () => void;
@@ -117,10 +121,12 @@ function SavedSequenceActions({
 }
 
 function SavedSequenceRow({
+  isPlayEnabled,
   sequence,
   isSelected,
   isSelectionEnabled,
   isMenuOpen,
+  onPlay,
   onSelect,
   onToggleMenu,
   onRename,
@@ -151,20 +157,33 @@ function SavedSequenceRow({
           </p>
         </button>
 
-        <SavedSequenceActions
-          sequenceName={sequence.name}
-          isOpen={isMenuOpen}
-          onToggle={onToggleMenu}
-          onRename={onRename}
-          onDelete={onDelete}
-        />
+        <div className="flex shrink-0 items-start gap-2">
+          <button
+            type="button"
+            aria-label={`Play ${sequence.name}`}
+            className="rounded-full border border-amber-300/40 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 transition-colors hover:border-amber-200 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!isPlayEnabled}
+            onClick={onPlay}
+          >
+            Play
+          </button>
+          <SavedSequenceActions
+            sequenceName={sequence.name}
+            isOpen={isMenuOpen}
+            onToggle={onToggleMenu}
+            onRename={onRename}
+            onDelete={onDelete}
+          />
+        </div>
       </div>
     </li>
   );
 }
 
 export function SavedList({
+  onPlaySequence,
   onSelectSequence,
+  playEnabled = true,
   selectedSequenceId = null,
   selectionEnabled = true,
   sequences,
@@ -209,10 +228,12 @@ export function SavedList({
           {orderedSequences.map((sequence) => (
             <SavedSequenceRow
               key={sequence.id}
+              isPlayEnabled={playEnabled}
               sequence={sequence}
               isSelected={sequence.id === selectedSequenceId}
               isSelectionEnabled={selectionEnabled}
               isMenuOpen={openMenuSequenceId === sequence.id}
+              onPlay={() => onPlaySequence?.(sequence.id)}
               onSelect={() => onSelectSequence?.(sequence.id)}
               onToggleMenu={() => toggleSequenceMenu(sequence.id)}
               onRename={() => requestRename(sequence)}

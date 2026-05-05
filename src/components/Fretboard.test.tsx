@@ -62,4 +62,18 @@ describe("Fretboard", () => {
 
     expect(screen.getAllByTestId("step-badge")).toHaveLength(3);
   });
+
+  it("renders a glowing overlay for the active playback step", () => {
+    render(
+      <Fretboard
+        activeStepIndex={1}
+        stepBadges={[
+          { string: 0, fret: 0 },
+          { string: 0, fret: 3 },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("active-step-badge")).toHaveAttribute("data-step-index", "1");
+  });
 });

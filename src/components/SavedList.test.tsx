@@ -125,4 +125,42 @@ describe("SavedList", () => {
 
     expect(onDelete).toHaveBeenCalledWith(sequence);
   });
+
+  it("forwards row play requests and can disable the play buttons", () => {
+    const onPlaySequence = vi.fn();
+    const sequence = {
+      id: "warmup",
+      name: "Warmup",
+      steps: [{ string: 0, fret: 0 }],
+      bpm: 80,
+      createdAt: new Date("2026-05-05T11:59:30.000Z").valueOf(),
+    };
+
+    const { rerender } = render(
+      <SavedList
+        sequences={[sequence]}
+        playEnabled={false}
+        onPlaySequence={onPlaySequence}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    const playButton = screen.getByRole("button", { name: "Play Warmup" });
+
+    expect(playButton).toBeDisabled();
+
+    rerender(
+      <SavedList
+        sequences={[sequence]}
+        onPlaySequence={onPlaySequence}
+        onRename={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play Warmup" }));
+
+    expect(onPlaySequence).toHaveBeenCalledWith("warmup");
+  });
 });

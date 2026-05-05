@@ -1,17 +1,45 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { SEQUENCE_STORAGE_KEY, SEQUENCE_STORAGE_VERSION } from "./sequenceStore";
 
-const { init, previewNote } = vi.hoisted(() => ({
+const { init, playSequence, playbackHandles, previewNote, stop } = vi.hoisted(() => ({
   init: vi.fn().mockResolvedValue(undefined),
+  playSequence: vi.fn().mockImplementation(async (options) => {
+    const handle = {
+      setBpm: vi.fn(),
+      stop: vi.fn(),
+    };
+
+    playbackHandles.push({
+      handle,
+      options,
+    });
+
+    return handle;
+  }),
+  playbackHandles: [] as Array<{
+    handle: {
+      setBpm: ReturnType<typeof vi.fn>;
+      stop: ReturnType<typeof vi.fn>;
+    };
+    options: {
+      bpm: number;
+      onStep?: (index: number) => void;
+      onStop?: () => void;
+      steps: Array<{ string: number; fret: number }>;
+    };
+  }>,
   previewNote: vi.fn().mockResolvedValue(undefined),
+  stop: vi.fn(),
 }));
 
 vi.mock("./audioEngine", () => ({
   init,
+  playSequence,
   previewNote,
+  stop,
 }));
 
 function getFretboardCell(container: HTMLElement, stringIndex: number, fret: number) {
@@ -31,7 +59,10 @@ describe("App recording flow", () => {
     vi.useRealTimers();
     window.localStorage.clear();
     init.mockClear();
+    playSequence.mockClear();
+    playbackHandles.length = 0;
     previewNote.mockClear();
+    stop.mockClear();
   });
 
   afterEach(() => {
@@ -101,9 +132,7 @@ describe("App recording flow", () => {
     expect(screen.queryAllByTestId("step-badge")).toHaveLength(0);
   });
 
-  it("previews draft playback in order and cancels queued notes when cleared", () => {
-    vi.useFakeTimers();
-
+  it("plays draft playback through the audio engine at 80 BPM and stops it when cleared", async () => {
     const { container } = render(<App />);
     const firstCell = getFretboardCell(container, 0, 0);
     const secondCell = getFretboardCell(container, 0, 3);
@@ -112,40 +141,27 @@ describe("App recording flow", () => {
     fireEvent.click(firstCell);
     fireEvent.click(secondCell);
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    previewNote.mockClear();
+    playSequence.mockClear();
 
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
 
-    expect(previewNote).not.toHaveBeenCalled();
+    await waitFor(() => expect(playSequence).toHaveBeenCalledTimes(1));
 
-    vi.advanceTimersByTime(0);
+    expect(playbackHandles[0]?.options.bpm).toBe(80);
+    expect(playbackHandles[0]?.options.steps).toEqual([
+      { string: 0, fret: 0 },
+      { string: 0, fret: 3 },
+    ]);
 
-    expect(previewNote).toHaveBeenCalledTimes(1);
-    expect(previewNote).toHaveBeenLastCalledWith(0, 0);
+    act(() => {
+      playbackHandles[0]?.options.onStep?.(0);
+    });
 
-    vi.advanceTimersByTime(424);
-
-    expect(previewNote).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(1);
-
-    expect(previewNote).toHaveBeenCalledTimes(2);
-    expect(previewNote).toHaveBeenLastCalledWith(0, 3);
-
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
-    vi.advanceTimersByTime(0);
-
-    expect(previewNote).toHaveBeenCalledTimes(3);
-    expect(previewNote).toHaveBeenLastCalledWith(0, 0);
-
-    vi.advanceTimersByTime(424);
-
-    expect(previewNote).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("active-step-badge")).toHaveAttribute("data-step-index", "0");
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    vi.advanceTimersByTime(1);
 
-    expect(previewNote).toHaveBeenCalledTimes(3);
+    expect(stop).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
   });
 
@@ -294,8 +310,8 @@ describe("App recording flow", () => {
       "3. A string 5, fret 0",
     ]);
 
-    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
-    expect(screen.getByRole("slider", { name: "Tempo (BPM)" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Play" })).toBeEnabled();
+    expect(screen.getByRole("slider", { name: "Tempo (BPM)" })).toBeEnabled();
     expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Loop" })).toBeDisabled();
 
@@ -442,5 +458,140 @@ describe("App recording flow", () => {
 
     expect(within(reloadedList).getByText("Warmup")).toBeInTheDocument();
     expect(within(reloadedList).queryByText("Arpeggio")).not.toBeInTheDocument();
+  });
+
+  it("plays the selected sequence with live highlighting and persists bpm changes", async () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [
+              { string: 0, fret: 0 },
+              { string: 0, fret: 3 },
+            ],
+            bpm: 100,
+            createdAt: 1_762_345_500_000,
+          },
+        ],
+      }),
+    );
+
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Warmup" }));
+
+    const tempoSlider = screen.getByRole("slider", { name: "Tempo (BPM)" }) as HTMLInputElement;
+
+    expect(tempoSlider.value).toBe("100");
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    await waitFor(() => expect(playSequence).toHaveBeenCalledTimes(1));
+
+    const playback = playbackHandles[0];
+
+    expect(playback?.options.bpm).toBe(100);
+    expect(playback?.options.steps).toEqual([
+      { string: 0, fret: 0 },
+      { string: 0, fret: 3 },
+    ]);
+    expect(screen.getByRole("button", { name: "Record" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+
+    act(() => {
+      playback?.options.onStep?.(1);
+    });
+
+    const activeBadge = screen.getByTestId("active-step-badge");
+
+    expect(activeBadge).toHaveAttribute("data-step-index", "1");
+    expect(screen.getAllByTestId("step-badge")).toHaveLength(2);
+
+    fireEvent.change(tempoSlider, { target: { value: "132" } });
+
+    expect(playback?.handle.setBpm).toHaveBeenCalledWith(132);
+    expect((screen.getByRole("slider", { name: "Tempo (BPM)" }) as HTMLInputElement).value).toBe(
+      "132",
+    );
+    act(() => {
+      playback?.options.onStop?.();
+    });
+
+    expect(screen.queryByTestId("active-step-badge")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Warmup" }));
+
+    expect((screen.getByRole("slider", { name: "Tempo (BPM)" }) as HTMLInputElement).value).toBe(
+      "132",
+    );
+  });
+
+  it("starts playback from a saved row play button, stops on row switch, and disables row play during recording", async () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 80,
+            createdAt: 1_762_345_500_000,
+          },
+          {
+            id: "saved-2",
+            name: "Arpeggio",
+            steps: [
+              { string: 1, fret: 0 },
+              { string: 2, fret: 2 },
+            ],
+            bpm: 90,
+            createdAt: 1_762_345_600_000,
+          },
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play Arpeggio" }));
+
+    await waitFor(() => expect(playSequence).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByRole("button", { name: "Select Arpeggio" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(playbackHandles[0]?.options.steps).toEqual([
+      { string: 1, fret: 0 },
+      { string: 2, fret: 2 },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Warmup" }));
+
+    expect(stop).toHaveBeenCalled();
+    expect(playSequence).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Select Warmup" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Select Arpeggio" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+
+    expect(screen.getByRole("button", { name: "Play Warmup" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Play Arpeggio" })).toBeDisabled();
   });
 });

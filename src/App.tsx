@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { init, previewNote } from "./audioEngine";
+import { init, playSequence, previewNote, stop, type PlaybackHandle } from "./audioEngine";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 import { Fretboard } from "./components/Fretboard";
 import { RenameDialog } from "./components/RenameDialog";
@@ -21,13 +21,11 @@ import {
   type Sequence,
 } from "./sequenceStore";
 
-const DRAFT_PREVIEW_INTERVAL_MS = 425;
+function modeTitle(state: RecordingState, isPlaying: boolean) {
+  if (isPlaying) {
+    return "Playback Running";
+  }
 
-function shouldClearDraftPreviewQueue(event: RecordingEvent) {
-  return event.type === "CLEAR" || event.type === "SAVE";
-}
-
-function modeTitle(state: RecordingState) {
   switch (state.mode) {
     case "idle":
       return "Ready to Record";
@@ -38,7 +36,11 @@ function modeTitle(state: RecordingState) {
   }
 }
 
-function modeDescription(state: RecordingState) {
+function modeDescription(state: RecordingState, isPlaying: boolean) {
+  if (isPlaying) {
+    return "Playback is active. Stop any time or adjust the selected sequence tempo live.";
+  }
+
   switch (state.mode) {
     case "idle":
       return "Click Record to start drafting a sequence in memory.";
@@ -57,15 +59,47 @@ function normalizeSequenceName(name: string) {
   return name.trim().toLocaleLowerCase();
 }
 
-function SelectedSequenceControls({ sequence }: { sequence: Sequence }) {
+type PlaybackSource =
+  | {
+      kind: "draft";
+    }
+  | {
+      kind: "saved";
+      sequenceId: string;
+    };
+
+interface PlaybackState {
+  currentStepIndex: number | null;
+  source: PlaybackSource;
+}
+
+function SelectedSequenceControls({
+  isPlaying,
+  onBpmChange,
+  onPlay,
+  onStop,
+  sequence,
+}: {
+  isPlaying: boolean;
+  onBpmChange: (bpm: number) => void;
+  onPlay: () => void;
+  onStop: () => void;
+  sequence: Sequence;
+}) {
   return (
     <>
       <p className="rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100">
         {sequence.name}
       </p>
-      <Button type="button" disabled>
-        Play
-      </Button>
+      {isPlaying ? (
+        <Button type="button" onClick={onStop}>
+          Stop
+        </Button>
+      ) : (
+        <Button type="button" onClick={onPlay}>
+          Play
+        </Button>
+      )}
       <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
         <span>Tempo</span>
         <input
@@ -74,8 +108,7 @@ function SelectedSequenceControls({ sequence }: { sequence: Sequence }) {
           min={40}
           max={240}
           value={sequence.bpm}
-          disabled
-          readOnly
+          onChange={(event) => onBpmChange(Number(event.target.value))}
         />
       </label>
       <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
@@ -95,30 +128,30 @@ export function App() {
   const [recordingState, setRecordingState] = useState(initialRecordingState);
   const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
   const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
+  const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Sequence | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Sequence | null>(null);
   const recordingStateRef = useRef<RecordingState>(initialRecordingState);
-  const previewTimeoutsRef = useRef<number[]>([]);
+  const playbackHandleRef = useRef<PlaybackHandle | null>(null);
+  const playbackRequestIdRef = useRef(0);
   const selectedSequence =
     selectedSequenceId === null
       ? null
       : savedSequences.find((sequence) => sequence.id === selectedSequenceId) ?? null;
+  const isSavedPlaybackActive =
+    playbackState?.source.kind === "saved" &&
+    playbackState.source.sequenceId === selectedSequenceId;
+  const isDraftPlaybackActive = playbackState?.source.kind === "draft";
+  const isPlaying = playbackState !== null;
 
   useEffect(() => {
     return () => {
-      previewTimeoutsRef.current.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId);
-      });
+      playbackRequestIdRef.current += 1;
+      playbackHandleRef.current = null;
+      stop();
     };
   }, []);
-
-  function clearDraftPreviewQueue() {
-    previewTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId);
-    });
-    previewTimeoutsRef.current = [];
-  }
 
   function runIntents(intents: RecordingIntent[]) {
     intents.forEach((intent) => {
@@ -147,8 +180,8 @@ export function App() {
   function dispatch(event: RecordingEvent) {
     const result = reduceRecordingState(recordingStateRef.current, event);
 
-    if (shouldClearDraftPreviewQueue(event)) {
-      clearDraftPreviewQueue();
+    if (event.type === "CLEAR" || event.type === "SAVE") {
+      stopPlayback();
     }
 
     recordingStateRef.current = result.state;
@@ -156,8 +189,67 @@ export function App() {
     runIntents(result.intents);
   }
 
+  function clearPlaybackState() {
+    playbackRequestIdRef.current += 1;
+    playbackHandleRef.current = null;
+    setPlaybackState(null);
+  }
+
+  function stopPlayback() {
+    clearPlaybackState();
+    stop();
+  }
+
+  async function startPlayback(
+    source: PlaybackSource,
+    steps: Sequence["steps"],
+    bpm: number,
+  ) {
+    stop();
+    clearPlaybackState();
+    setPlaybackState({
+      currentStepIndex: null,
+      source,
+    });
+
+    const requestId = playbackRequestIdRef.current;
+    const handle = await playSequence({
+      steps,
+      bpm,
+      onStep: (index) => {
+        if (playbackRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        setPlaybackState({
+          currentStepIndex: index,
+          source,
+        });
+      },
+      onStop: () => {
+        if (playbackRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        playbackHandleRef.current = null;
+        setPlaybackState(null);
+      },
+    });
+
+    if (playbackRequestIdRef.current !== requestId) {
+      handle.stop();
+      return;
+    }
+
+    playbackHandleRef.current = handle;
+  }
+
   function handleRecordStart() {
-    clearDraftPreviewQueue();
+    if (isPlaying) {
+      return;
+    }
+
+    stopPlayback();
     setSelectedSequenceId(null);
     void init();
     dispatch({ type: "START_RECORD" });
@@ -175,20 +267,12 @@ export function App() {
     void previewNote(stringIndex, fret);
   }
 
-  function handleDraftPreview() {
+  function handleDraftPlay() {
     if (recordingState.mode !== "recording.draft") {
       return;
     }
 
-    clearDraftPreviewQueue();
-
-    recordingState.steps.forEach((step, index) => {
-      const timeoutId = window.setTimeout(() => {
-        void previewNote(step.string, step.fret);
-      }, index * DRAFT_PREVIEW_INTERVAL_MS);
-
-      previewTimeoutsRef.current.push(timeoutId);
-    });
+    void startPlayback({ kind: "draft" }, recordingState.steps, DEFAULT_SEQUENCE_BPM);
   }
 
   function handleSaveConfirm(name: string) {
@@ -213,9 +297,71 @@ export function App() {
       return;
     }
 
+    if (isPlaying) {
+      if (selectedSequenceId !== sequenceId) {
+        stopPlayback();
+        setSelectedSequenceId(sequenceId);
+      }
+
+      return;
+    }
+
     setSelectedSequenceId((currentSequenceId) =>
       currentSequenceId === sequenceId ? null : sequenceId,
     );
+  }
+
+  function handleSequencePlay(sequenceId: string) {
+    if (recordingState.mode !== "idle") {
+      return;
+    }
+
+    const sequence = savedSequences.find((candidate) => candidate.id === sequenceId);
+
+    if (sequence === undefined) {
+      return;
+    }
+
+    setSelectedSequenceId(sequence.id);
+    void startPlayback(
+      {
+        kind: "saved",
+        sequenceId: sequence.id,
+      },
+      sequence.steps,
+      sequence.bpm,
+    );
+  }
+
+  function handleSelectedSequencePlay() {
+    if (selectedSequence === null) {
+      return;
+    }
+
+    void startPlayback(
+      {
+        kind: "saved",
+        sequenceId: selectedSequence.id,
+      },
+      selectedSequence.steps,
+      selectedSequence.bpm,
+    );
+  }
+
+  function handleSelectedSequenceBpmChange(bpm: number) {
+    if (selectedSequence === null) {
+      return;
+    }
+
+    if (!sequenceStore.updateBpm(selectedSequence.id, bpm)) {
+      return;
+    }
+
+    setSavedSequences(sequenceStore.loadAll());
+
+    if (isSavedPlaybackActive) {
+      playbackHandleRef.current?.setBpm(bpm);
+    }
   }
 
   function hasOtherSequenceNamed(id: string, name: string) {
@@ -294,9 +440,15 @@ export function App() {
       case "recording.draft":
         return (
           <>
-            <Button type="button" onClick={handleDraftPreview}>
-              Play
-            </Button>
+            {isDraftPlaybackActive ? (
+              <Button type="button" onClick={stopPlayback}>
+                Stop
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleDraftPlay}>
+                Play
+              </Button>
+            )}
             <Button
               type="button"
               variant="secondary"
@@ -326,27 +478,49 @@ export function App() {
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/80">
                 Mode
               </p>
-              <h1 className="font-serif text-2xl text-stone-50">{modeTitle(recordingState)}</h1>
-              <p className="mt-2 text-sm text-stone-300">{modeDescription(recordingState)}</p>
+              <h1 className="font-serif text-2xl text-stone-50">
+                {modeTitle(recordingState, isPlaying)}
+              </h1>
+              <p className="mt-2 text-sm text-stone-300">
+                {modeDescription(recordingState, isPlaying)}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {renderRecordingControls()}
+              {recordingState.mode === "idle" ? (
+                <Button type="button" disabled={isPlaying} onClick={handleRecordStart}>
+                  Record
+                </Button>
+              ) : (
+                renderRecordingControls()
+              )}
               {recordingState.mode === "idle" && selectedSequence !== null ? (
-                <SelectedSequenceControls sequence={selectedSequence} />
+                <SelectedSequenceControls
+                  isPlaying={Boolean(isSavedPlaybackActive)}
+                  onBpmChange={handleSelectedSequenceBpmChange}
+                  onPlay={handleSelectedSequencePlay}
+                  onStop={stopPlayback}
+                  sequence={selectedSequence}
+                />
               ) : null}
             </div>
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-stone-700/60 bg-stone-900/85 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-          <Fretboard onNaturalFretClick={handleFretClick} stepBadges={visibleSteps} />
+          <Fretboard
+            activeStepIndex={playbackState?.currentStepIndex ?? null}
+            onNaturalFretClick={handleFretClick}
+            stepBadges={visibleSteps}
+          />
         </section>
 
         {visibleSteps.length > 0 ? (
           <SequenceStrip ariaLabel={sequenceStripLabel} steps={visibleSteps} />
         ) : null}
         <SavedList
+          onPlaySequence={handleSequencePlay}
           sequences={savedSequences}
+          playEnabled={recordingState.mode === "idle"}
           selectedSequenceId={selectedSequenceId}
           selectionEnabled={recordingState.mode === "idle"}
           onSelectSequence={handleSequenceSelect}
