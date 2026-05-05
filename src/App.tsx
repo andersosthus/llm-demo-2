@@ -172,13 +172,10 @@ export function App() {
   function hasOtherSequenceNamed(id: string, name: string) {
     const normalizedName = normalizeSequenceName(name);
 
-    return savedSequences.some((sequence) => {
-      if (sequence.id === id) {
-        return false;
-      }
-
-      return normalizeSequenceName(sequence.name) === normalizedName;
-    });
+    return savedSequences.some(
+      (sequence) =>
+        sequence.id !== id && normalizeSequenceName(sequence.name) === normalizedName,
+    );
   }
 
   function handleRenameConfirm(name: string) {
