@@ -48,6 +48,53 @@ function fretCellBounds(fret: number) {
   };
 }
 
+function renderNaturalNoteLabel(fret: number, y: number, noteName: string) {
+  if (fret === 0) {
+    return null;
+  }
+
+  return (
+    <text
+      x={xForFretCenter(fret)}
+      y={y + 5}
+      textAnchor="middle"
+      fontSize="14"
+      fontWeight="700"
+      fill="#fde68a"
+      data-note-label="true"
+      data-note-name={noteName}
+    >
+      {noteName}
+    </text>
+  );
+}
+
+function renderFretCell(stringIndex: number, fret: number, y: number) {
+  const note = noteAt(stringIndex, fret);
+  const { width, x } = fretCellBounds(fret);
+  const handleClick = note.isNatural ? () => void previewNote(stringIndex, fret) : undefined;
+
+  return (
+    <g key={`${stringIndex}-${fret}`}>
+      <rect
+        data-fretboard-cell="true"
+        data-fret={fret}
+        data-is-natural={note.isNatural}
+        data-string-index={stringIndex}
+        x={x}
+        y={y - STRING_SPACING / 2}
+        width={width}
+        height={STRING_SPACING}
+        rx={fret === 0 ? 12 : 10}
+        fill="transparent"
+        cursor={handleClick ? "pointer" : "default"}
+        onClick={handleClick}
+      />
+      {note.isNatural ? renderNaturalNoteLabel(fret, y, note.name) : null}
+    </g>
+  );
+}
+
 function renderFretMarker(fret: number) {
   const x = xForFretCenter(fret);
 
@@ -157,48 +204,8 @@ export function Fretboard() {
 
       {STRINGS_IN_RENDER_ORDER.map((stringIndex, renderIndex) => {
         const y = yForString(renderIndex);
-        const cellY = y - STRING_SPACING / 2;
 
-        return Array.from({ length: FRET_COUNT + 1 }, (_, fret) => {
-          const position = noteAt(stringIndex, fret);
-          const { width, x } = fretCellBounds(fret);
-          const isInteractive = position.isNatural;
-
-          return (
-            <g key={`${stringIndex}-${fret}`}>
-              <rect
-                data-fretboard-cell="true"
-                data-fret={fret}
-                data-is-natural={position.isNatural}
-                data-string-index={stringIndex}
-                x={x}
-                y={cellY}
-                width={width}
-                height={STRING_SPACING}
-                rx={fret === 0 ? 12 : 10}
-                fill="transparent"
-                cursor={isInteractive ? "pointer" : "default"}
-                onClick={
-                  isInteractive ? () => void previewNote(stringIndex, fret) : undefined
-                }
-              />
-              {position.isNatural && fret > 0 ? (
-                <text
-                  x={xForFretCenter(fret)}
-                  y={y + 5}
-                  textAnchor="middle"
-                  fontSize="14"
-                  fontWeight="700"
-                  fill="#fde68a"
-                  data-note-label="true"
-                  data-note-name={position.name}
-                >
-                  {position.name}
-                </text>
-              ) : null}
-            </g>
-          );
-        });
+        return fretIndexes.map((fret) => renderFretCell(stringIndex, fret, y));
       })}
     </svg>
   );

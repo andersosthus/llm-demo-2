@@ -20,10 +20,10 @@ interface ToneLike {
 }
 
 export function createAudioEngine(tone: ToneLike) {
-  let initPromise: Promise<void> | null = null;
+  let startPromise: Promise<void> | null = null;
   let synth: PluckSynthLike | null = null;
 
-  function getSynth() {
+  function getOrCreateSynth() {
     if (!synth) {
       synth = new tone.PluckSynth().toDestination();
     }
@@ -32,13 +32,13 @@ export function createAudioEngine(tone: ToneLike) {
   }
 
   async function init() {
-    if (!initPromise) {
-      initPromise = tone.start().then(() => {
-        getSynth();
+    if (!startPromise) {
+      startPromise = tone.start().then(() => {
+        getOrCreateSynth();
       });
     }
 
-    await initPromise;
+    await startPromise;
   }
 
   async function previewNote(stringIndex: number, fret: number) {
@@ -47,7 +47,7 @@ export function createAudioEngine(tone: ToneLike) {
     const note = noteAt(stringIndex, fret);
     const pitch = tone.Frequency(note.midi, "midi").toNote();
 
-    getSynth().triggerAttackRelease(pitch, PREVIEW_DURATION_SECONDS);
+    getOrCreateSynth().triggerAttackRelease(pitch, PREVIEW_DURATION_SECONDS);
   }
 
   return {

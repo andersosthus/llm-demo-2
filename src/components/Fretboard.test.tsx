@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Fretboard } from "./Fretboard";
 
@@ -11,7 +11,23 @@ vi.mock("../audioEngine", () => ({
   previewNote,
 }));
 
+function getFretboardCell(container: HTMLElement, stringIndex: number, fret: number) {
+  const cell = container.querySelector(
+    `[data-fretboard-cell="true"][data-string-index="${stringIndex}"][data-fret="${fret}"]`,
+  );
+
+  if (cell === null) {
+    throw new Error(`Expected fretboard cell for string ${stringIndex}, fret ${fret}.`);
+  }
+
+  return cell;
+}
+
 describe("Fretboard", () => {
+  beforeEach(() => {
+    previewNote.mockClear();
+  });
+
   it("renders the static fretboard with note labels and standard markers", () => {
     const { container } = render(<Fretboard />);
 
@@ -29,18 +45,11 @@ describe("Fretboard", () => {
 
   it("previews natural notes on click and leaves sharp cells inert", () => {
     const { container } = render(<Fretboard />);
-    const naturalCell = container.querySelector(
-      '[data-fretboard-cell="true"][data-string-index="0"][data-fret="0"]',
-    );
-    const sharpCell = container.querySelector(
-      '[data-fretboard-cell="true"][data-string-index="0"][data-fret="2"]',
-    );
+    const naturalCell = getFretboardCell(container, 0, 0);
+    const sharpCell = getFretboardCell(container, 0, 2);
 
-    expect(naturalCell).not.toBeNull();
-    expect(sharpCell).not.toBeNull();
-
-    fireEvent.click(naturalCell!);
-    fireEvent.click(sharpCell!);
+    fireEvent.click(naturalCell);
+    fireEvent.click(sharpCell);
 
     expect(previewNote).toHaveBeenCalledTimes(1);
     expect(previewNote).toHaveBeenCalledWith(0, 0);
