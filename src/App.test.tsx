@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { PREFS_STORAGE_KEY, PREFS_STORAGE_VERSION } from "./prefsStore";
 import { SEQUENCE_STORAGE_KEY, SEQUENCE_STORAGE_VERSION } from "./sequenceStore";
 
 const { init, playSequence, playbackHandles, previewNote, stop } = vi.hoisted(() => ({
@@ -171,9 +172,9 @@ describe("App recording flow", () => {
 
   it("shows global playback toggles in draft mode, persists them, and uses them for draft playback", async () => {
     window.localStorage.setItem(
-      "guitar-app:prefs:v1",
+      PREFS_STORAGE_KEY,
       JSON.stringify({
-        version: 1,
+        version: PREFS_STORAGE_VERSION,
         prefs: {
           countInEnabled: false,
           loopEnabled: true,
@@ -591,9 +592,9 @@ describe("App recording flow", () => {
 
   it("loads global playback prefs, lets them be toggled, and forwards them into playback", async () => {
     window.localStorage.setItem(
-      "guitar-app:prefs:v1",
+      PREFS_STORAGE_KEY,
       JSON.stringify({
-        version: 1,
+        version: PREFS_STORAGE_VERSION,
         prefs: {
           countInEnabled: false,
           loopEnabled: true,

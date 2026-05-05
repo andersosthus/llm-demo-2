@@ -80,20 +80,25 @@ interface PlaybackState {
   source: PlaybackSource;
 }
 
+interface PlaybackPreferenceTogglesProps {
+  countInEnabled: boolean;
+  loopEnabled: boolean;
+  onCountInChange: (enabled: boolean) => void;
+  onLoopChange: (enabled: boolean) => void;
+}
+
+const playbackPreferenceToggleClassName =
+  "flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300";
+
 function PlaybackPreferenceToggles({
   countInEnabled,
   loopEnabled,
   onCountInChange,
   onLoopChange,
-}: {
-  countInEnabled: boolean;
-  loopEnabled: boolean;
-  onCountInChange: (enabled: boolean) => void;
-  onLoopChange: (enabled: boolean) => void;
-}) {
+}: PlaybackPreferenceTogglesProps) {
   return (
     <>
-      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+      <label className={playbackPreferenceToggleClassName}>
         <input
           aria-label="Count-in"
           type="checkbox"
@@ -102,7 +107,7 @@ function PlaybackPreferenceToggles({
         />
         <span>Count-in</span>
       </label>
-      <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+      <label className={playbackPreferenceToggleClassName}>
         <input
           aria-label="Loop"
           type="checkbox"
