@@ -2,6 +2,7 @@ import { noteAt } from "../fretboardMath";
 import type { Step } from "../recordingMachine";
 
 interface SequenceStripProps {
+  ariaLabel?: string;
   steps: Step[];
 }
 
@@ -9,10 +10,10 @@ function stringLabel(step: Step) {
   return 6 - step.string;
 }
 
-export function SequenceStrip({ steps }: SequenceStripProps) {
+export function SequenceStrip({ ariaLabel = "Draft sequence", steps }: SequenceStripProps) {
   return (
     <section
-      aria-label="Draft sequence"
+      aria-label={ariaLabel}
       className="rounded-[2rem] border border-amber-400/20 bg-stone-950/60 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
     >
       <ol className="flex flex-wrap gap-3">

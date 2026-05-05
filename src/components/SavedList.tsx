@@ -1,6 +1,9 @@
 import type { Sequence } from "../sequenceStore";
 
 interface SavedListProps {
+  onSelectSequence?: (sequenceId: string) => void;
+  selectedSequenceId?: string | null;
+  selectionEnabled?: boolean;
   sequences: Sequence[];
 }
 
@@ -41,7 +44,12 @@ function stepCountLabel(stepCount: number) {
   return `${stepCount} step${stepCount === 1 ? "" : "s"}`;
 }
 
-export function SavedList({ sequences }: SavedListProps) {
+export function SavedList({
+  onSelectSequence,
+  selectedSequenceId = null,
+  selectionEnabled = true,
+  sequences,
+}: SavedListProps) {
   const orderedSequences = [...sequences].sort((left, right) => right.createdAt - left.createdAt);
 
   return (
@@ -63,17 +71,27 @@ export function SavedList({ sequences }: SavedListProps) {
       ) : (
         <ol className="flex flex-col gap-3">
           {orderedSequences.map((sequence) => (
-            <li
-              key={sequence.id}
-              className="rounded-[1.5rem] border border-stone-800 bg-stone-900/70 px-5 py-4"
-            >
-              <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-                <p className="text-lg font-semibold text-stone-50">{sequence.name}</p>
-                <p className="text-sm text-stone-400">{formatRelativeTime(sequence.createdAt)}</p>
-              </div>
-              <p className="mt-2 text-sm text-stone-300">
-                {stepCountLabel(sequence.steps.length)}
-              </p>
+            <li key={sequence.id}>
+              <button
+                type="button"
+                aria-pressed={sequence.id === selectedSequenceId}
+                className={[
+                  "w-full rounded-[1.5rem] border px-5 py-4 text-left transition-colors",
+                  sequence.id === selectedSequenceId
+                    ? "border-amber-300/60 bg-amber-400/10"
+                    : "border-stone-800 bg-stone-900/70 hover:border-stone-700 hover:bg-stone-900",
+                ].join(" ")}
+                disabled={!selectionEnabled}
+                onClick={() => onSelectSequence?.(sequence.id)}
+              >
+                <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
+                  <p className="text-lg font-semibold text-stone-50">{sequence.name}</p>
+                  <p className="text-sm text-stone-400">{formatRelativeTime(sequence.createdAt)}</p>
+                </div>
+                <p className="mt-2 text-sm text-stone-300">
+                  {stepCountLabel(sequence.steps.length)}
+                </p>
+              </button>
             </li>
           ))}
         </ol>

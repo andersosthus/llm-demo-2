@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SavedList } from "./SavedList";
@@ -51,5 +51,42 @@ describe("SavedList", () => {
     expect(rows[1]).toHaveTextContent("2 days ago");
 
     nowSpy.mockRestore();
+  });
+
+  it("renders selectable rows and marks the active sequence", () => {
+    const onSelectSequence = vi.fn();
+
+    render(
+      <SavedList
+        sequences={[
+          {
+            id: "warmup",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 80,
+            createdAt: new Date("2026-05-05T11:59:30.000Z").valueOf(),
+          },
+          {
+            id: "arpeggio",
+            name: "Arpeggio",
+            steps: [{ string: 1, fret: 0 }],
+            bpm: 90,
+            createdAt: new Date("2026-05-05T11:58:30.000Z").valueOf(),
+          },
+        ]}
+        selectedSequenceId="warmup"
+        onSelectSequence={onSelectSequence}
+      />,
+    );
+
+    const warmupRow = screen.getByRole("button", { name: /Warmup/ });
+    const arpeggioRow = screen.getByRole("button", { name: /Arpeggio/ });
+
+    expect(warmupRow).toHaveAttribute("aria-pressed", "true");
+    expect(arpeggioRow).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(arpeggioRow);
+
+    expect(onSelectSequence).toHaveBeenCalledWith("arpeggio");
   });
 });

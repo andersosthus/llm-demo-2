@@ -240,4 +240,86 @@ describe("App recording flow", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByLabelText("Draft sequence")).toBeInTheDocument();
   });
+
+  it("selects a saved sequence, mirrors it on the fretboard and strip, and clears selection on record", () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [
+              { string: 0, fret: 0 },
+              { string: 0, fret: 3 },
+            ],
+            bpm: 80,
+            createdAt: 1_762_345_500_000,
+          },
+          {
+            id: "saved-2",
+            name: "Arpeggio",
+            steps: [
+              { string: 1, fret: 0 },
+              { string: 2, fret: 2 },
+              { string: 1, fret: 0 },
+            ],
+            bpm: 100,
+            createdAt: 1_762_345_600_000,
+          },
+        ],
+      }),
+    );
+
+    const { container } = render(<App />);
+    const openECell = getFretboardCell(container, 0, 0);
+
+    const arpeggioRow = screen.getByRole("button", { name: /Arpeggio/ });
+
+    fireEvent.click(arpeggioRow);
+
+    expect(arpeggioRow).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId("step-badge")).toHaveLength(3);
+    expect(
+      container.querySelectorAll('[data-step-badge="true"][data-string-index="1"][data-fret="0"]'),
+    ).toHaveLength(2);
+
+    const selectedStrip = screen.getByLabelText("Selected sequence");
+    const selectedItems = within(selectedStrip).getAllByRole("listitem");
+
+    expect(selectedItems.map((item) => item.textContent)).toEqual([
+      "1. A string 5, fret 0",
+      "2. E string 4, fret 2",
+      "3. A string 5, fret 0",
+    ]);
+
+    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+    expect(screen.getByRole("slider", { name: "Tempo (BPM)" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Count-in" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Loop" })).toBeDisabled();
+
+    fireEvent.click(openECell);
+
+    expect(previewNote).toHaveBeenCalledTimes(1);
+    expect(previewNote).toHaveBeenLastCalledWith(0, 0);
+    expect(screen.getAllByTestId("step-badge")).toHaveLength(3);
+
+    fireEvent.click(arpeggioRow);
+
+    expect(arpeggioRow).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByLabelText("Selected sequence")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("step-badge")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Warmup/ }));
+
+    expect(screen.getAllByTestId("step-badge")).toHaveLength(2);
+    expect(screen.getByLabelText("Selected sequence")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Selected sequence")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("step-badge")).toHaveLength(0);
+  });
 });

@@ -55,9 +55,14 @@ export function App() {
   const [sequenceStore] = useState(() => createSequenceStore(window.localStorage));
   const [recordingState, setRecordingState] = useState(initialRecordingState);
   const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
+  const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const recordingStateRef = useRef<RecordingState>(initialRecordingState);
   const previewTimeoutsRef = useRef<number[]>([]);
+  const selectedSequence =
+    selectedSequenceId === null
+      ? null
+      : savedSequences.find((sequence) => sequence.id === selectedSequenceId) ?? null;
 
   useEffect(() => {
     return () => {
@@ -112,6 +117,7 @@ export function App() {
 
   function handleRecordStart() {
     clearDraftPreviewQueue();
+    setSelectedSequenceId(null);
     void init();
     dispatch({ type: "START_RECORD" });
   }
@@ -161,6 +167,16 @@ export function App() {
     return null;
   }
 
+  function handleSequenceSelect(sequenceId: string) {
+    if (recordingState.mode !== "idle") {
+      return;
+    }
+
+    setSelectedSequenceId((currentSequenceId) =>
+      currentSequenceId === sequenceId ? null : sequenceId,
+    );
+  }
+
   function renderRecordingControls() {
     switch (recordingState.mode) {
       case "idle":
@@ -205,7 +221,10 @@ export function App() {
     }
   }
 
-  const draftSteps = recordingState.mode === "idle" ? [] : recordingState.steps;
+  const visibleSteps =
+    recordingState.mode === "idle" ? selectedSequence?.steps ?? [] : recordingState.steps;
+  const sequenceStripLabel =
+    recordingState.mode === "idle" ? "Selected sequence" : "Draft sequence";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#1c1917,_#0c0a09_55%)] px-6 py-8 text-stone-100">
@@ -221,16 +240,53 @@ export function App() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {renderRecordingControls()}
+              {recordingState.mode === "idle" && selectedSequence !== null ? (
+                <>
+                  <p className="rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100">
+                    {selectedSequence.name}
+                  </p>
+                  <Button type="button" disabled>
+                    Play
+                  </Button>
+                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+                    <span>Tempo</span>
+                    <input
+                      aria-label="Tempo (BPM)"
+                      type="range"
+                      min={40}
+                      max={240}
+                      value={selectedSequence.bpm}
+                      disabled
+                      readOnly
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+                    <input aria-label="Count-in" type="checkbox" checked disabled readOnly />
+                    <span>Count-in</span>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-full border border-stone-700 bg-stone-900/70 px-4 py-2 text-sm text-stone-300">
+                    <input aria-label="Loop" type="checkbox" disabled readOnly />
+                    <span>Loop</span>
+                  </label>
+                </>
+              ) : null}
             </div>
           </div>
         </section>
 
         <section className="rounded-[2rem] border border-stone-700/60 bg-stone-900/85 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-          <Fretboard onNaturalFretClick={handleFretClick} stepBadges={draftSteps} />
+          <Fretboard onNaturalFretClick={handleFretClick} stepBadges={visibleSteps} />
         </section>
 
-        {draftSteps.length > 0 ? <SequenceStrip steps={draftSteps} /> : null}
-        <SavedList sequences={savedSequences} />
+        {visibleSteps.length > 0 ? (
+          <SequenceStrip ariaLabel={sequenceStripLabel} steps={visibleSteps} />
+        ) : null}
+        <SavedList
+          sequences={savedSequences}
+          selectedSequenceId={selectedSequenceId}
+          selectionEnabled={recordingState.mode === "idle"}
+          onSelectSequence={handleSequenceSelect}
+        />
       </div>
 
       <SaveDialog
