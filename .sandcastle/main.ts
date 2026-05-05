@@ -70,7 +70,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   const plan = await sandcastle.run({
     hooks,
-    sandbox: codexDockerSandbox(),
+    sandbox: codexDockerSandbox,
     name: "planner",
     maxIterations: 1,
     //agent: sandcastle.claudeCode("claude-opus-4-6"),
@@ -126,7 +126,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
       try {
         await using sandbox = await sandcastle.createSandbox({
-          sandbox: codexDockerSandbox(),
+          sandbox: codexDockerSandbox,
           branch: issue.branch,
           hooks,
           copyToWorktree,
@@ -219,7 +219,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
   await sandcastle.run({
-    sandbox: codexDockerSandbox(),
+    sandbox: codexDockerSandbox,
     name: "merger",
     maxIterations: 10,
     agent: sandcastle.codex("gpt-5.5", { effort: "high" }),
