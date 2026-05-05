@@ -30,7 +30,7 @@ const hooks = {
   sandbox: {
     onSandboxReady: [
       { command: 'mkdir -p "$CODEX_HOME" && cp /mnt/codex-auth/auth.json "$CODEX_HOME/auth.json"' },
-      { command: "npm install" },
+      { command: "npm ci" },
     ]
   },
 };
@@ -219,6 +219,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
   await sandcastle.run({
+    hooks,
     sandbox: codexDockerSandbox,
     name: "merger",
     maxIterations: 10,
