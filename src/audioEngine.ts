@@ -59,6 +59,11 @@ function stepIntervalSeconds(bpm: number) {
   return 60 / bpm;
 }
 
+const noopPlaybackHandle: PlaybackHandle = {
+  stop() {},
+  setBpm() {},
+};
+
 export function createAudioEngine(tone: ToneLike) {
   let startPromise: Promise<void> | null = null;
   let synth: PluckSynthLike | null = null;
@@ -102,16 +107,19 @@ export function createAudioEngine(tone: ToneLike) {
       activePlayback = null;
     }
 
-    if (playback.eventId !== null) {
-      tone.Transport.clear(playback.eventId);
-      playback.eventId = null;
-    }
-
+    clearScheduledPlayback(playback);
     tone.Transport.stop();
     tone.Transport.cancel(0);
 
     if (notifyStop) {
       playback.onStop?.();
+    }
+  }
+
+  function clearScheduledPlayback(playback: ActivePlayback) {
+    if (playback.eventId !== null) {
+      tone.Transport.clear(playback.eventId);
+      playback.eventId = null;
     }
   }
 
@@ -163,10 +171,7 @@ export function createAudioEngine(tone: ToneLike) {
     if (steps.length === 0) {
       onStop?.();
 
-      return {
-        stop() {},
-        setBpm() {},
-      };
+      return noopPlaybackHandle;
     }
 
     const playback: ActivePlayback = {
@@ -192,12 +197,7 @@ export function createAudioEngine(tone: ToneLike) {
         }
 
         playback.bpm = nextBpm;
-
-        if (playback.eventId !== null) {
-          tone.Transport.clear(playback.eventId);
-          playback.eventId = null;
-        }
-
+        clearScheduledPlayback(playback);
         schedulePlayback(playback);
       },
     };

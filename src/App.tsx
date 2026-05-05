@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-import { init, playSequence, previewNote, stop, type PlaybackHandle } from "./audioEngine";
+import {
+  init,
+  playSequence,
+  previewNote,
+  stop as stopAudio,
+  type PlaybackHandle,
+} from "./audioEngine";
 import { DeleteConfirmDialog } from "./components/DeleteConfirmDialog";
 import { Fretboard } from "./components/Fretboard";
 import { RenameDialog } from "./components/RenameDialog";
@@ -149,7 +155,7 @@ export function App() {
     return () => {
       playbackRequestIdRef.current += 1;
       playbackHandleRef.current = null;
-      stop();
+      stopAudio();
     };
   }, []);
 
@@ -197,7 +203,23 @@ export function App() {
 
   function stopPlayback() {
     clearPlaybackState();
-    stop();
+    stopAudio();
+  }
+
+  function findSavedSequence(sequenceId: string) {
+    return savedSequences.find((sequence) => sequence.id === sequenceId) ?? null;
+  }
+
+  function playSavedSequence(sequence: Sequence) {
+    setSelectedSequenceId(sequence.id);
+    void startPlayback(
+      {
+        kind: "saved",
+        sequenceId: sequence.id,
+      },
+      sequence.steps,
+      sequence.bpm,
+    );
   }
 
   async function startPlayback(
@@ -205,7 +227,7 @@ export function App() {
     steps: Sequence["steps"],
     bpm: number,
   ) {
-    stop();
+    stopAudio();
     clearPlaybackState();
     setPlaybackState({
       currentStepIndex: null,
@@ -316,21 +338,13 @@ export function App() {
       return;
     }
 
-    const sequence = savedSequences.find((candidate) => candidate.id === sequenceId);
+    const sequence = findSavedSequence(sequenceId);
 
-    if (sequence === undefined) {
+    if (sequence === null) {
       return;
     }
 
-    setSelectedSequenceId(sequence.id);
-    void startPlayback(
-      {
-        kind: "saved",
-        sequenceId: sequence.id,
-      },
-      sequence.steps,
-      sequence.bpm,
-    );
+    playSavedSequence(sequence);
   }
 
   function handleSelectedSequencePlay() {
@@ -338,14 +352,7 @@ export function App() {
       return;
     }
 
-    void startPlayback(
-      {
-        kind: "saved",
-        sequenceId: selectedSequence.id,
-      },
-      selectedSequence.steps,
-      selectedSequence.bpm,
-    );
+    playSavedSequence(selectedSequence);
   }
 
   function handleSelectedSequenceBpmChange(bpm: number) {
@@ -418,7 +425,7 @@ export function App() {
     switch (recordingState.mode) {
       case "idle":
         return (
-          <Button type="button" onClick={handleRecordStart}>
+          <Button type="button" disabled={isPlaying} onClick={handleRecordStart}>
             Record
           </Button>
         );
@@ -486,13 +493,7 @@ export function App() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {recordingState.mode === "idle" ? (
-                <Button type="button" disabled={isPlaying} onClick={handleRecordStart}>
-                  Record
-                </Button>
-              ) : (
-                renderRecordingControls()
-              )}
+              {renderRecordingControls()}
               {recordingState.mode === "idle" && selectedSequence !== null ? (
                 <SelectedSequenceControls
                   isPlaying={Boolean(isSavedPlaybackActive)}
