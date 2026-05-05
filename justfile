@@ -5,3 +5,6 @@ set dotenv-filename := ".env.local"
 
 ralph:
 	npx tsx .sandcastle/main.ts
+
+sandbox-build:
+	npx sandcastle docker build-image --dockerfile .sandcastle/Dockerfile
