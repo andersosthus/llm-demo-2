@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { init, previewNote } from "./audioEngine";
 import { Fretboard } from "./components/Fretboard";
+import { SaveDialog } from "./components/SaveDialog";
+import { SavedList } from "./components/SavedList";
 import { SequenceStrip } from "./components/SequenceStrip";
 import { Button } from "./components/ui/button";
 import {
@@ -11,6 +13,11 @@ import {
   type RecordingIntent,
   type RecordingState,
 } from "./recordingMachine";
+import {
+  createSequenceStore,
+  DEFAULT_SEQUENCE_BPM,
+  type Sequence,
+} from "./sequenceStore";
 
 const DRAFT_PREVIEW_INTERVAL_MS = 425;
 
@@ -36,12 +43,25 @@ function modeDescription(state: RecordingState) {
     case "recording.live":
       return "Every natural-note click previews the pitch and appends a numbered step.";
     case "recording.draft":
-      return "Review the draft on the neck or preview it before the save flow lands.";
+      return "Review the draft on the neck, preview it, or save it to the library.";
   }
 }
 
+function createSequenceId() {
+  return globalThis.crypto?.randomUUID?.() ?? `sequence-${Date.now()}-${Math.random()}`;
+}
+
 export function App() {
+  const sequenceStoreRef = useRef<ReturnType<typeof createSequenceStore> | null>(null);
+
+  if (sequenceStoreRef.current === null) {
+    sequenceStoreRef.current = createSequenceStore(window.localStorage);
+  }
+  const sequenceStore = sequenceStoreRef.current;
+
   const [recordingState, setRecordingState] = useState(initialRecordingState);
+  const [savedSequences, setSavedSequences] = useState<Sequence[]>(() => sequenceStore.loadAll());
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const recordingStateRef = useRef<RecordingState>(initialRecordingState);
   const previewTimeoutsRef = useRef<number[]>([]);
 
@@ -66,8 +86,20 @@ export function App() {
         case "playNote":
           void previewNote(intent.step.string, intent.step.fret);
           break;
-        case "persist":
+        case "persist": {
+          const didSave = sequenceStore.save({
+            id: createSequenceId(),
+            name: intent.name,
+            steps: intent.steps,
+            bpm: DEFAULT_SEQUENCE_BPM,
+            createdAt: Date.now(),
+          });
+
+          if (didSave) {
+            setSavedSequences(sequenceStore.loadAll());
+          }
           break;
+        }
       }
     });
   }
@@ -118,6 +150,23 @@ export function App() {
     });
   }
 
+  function handleSaveConfirm(name: string) {
+    const trimmedName = name.trim();
+
+    if (trimmedName.length === 0) {
+      return "Enter a sequence name.";
+    }
+
+    if (sequenceStore.nameExists(trimmedName)) {
+      return "A sequence with that name already exists.";
+    }
+
+    setIsSaveDialogOpen(false);
+    dispatch({ type: "SAVE", name: trimmedName });
+
+    return null;
+  }
+
   function renderRecordingControls() {
     switch (recordingState.mode) {
       case "idle":
@@ -154,7 +203,7 @@ export function App() {
             >
               Clear
             </Button>
-            <Button type="button" disabled>
+            <Button type="button" onClick={() => setIsSaveDialogOpen(true)}>
               Save
             </Button>
           </>
@@ -187,7 +236,14 @@ export function App() {
         </section>
 
         {draftSteps.length > 0 ? <SequenceStrip steps={draftSteps} /> : null}
+        <SavedList sequences={savedSequences} />
       </div>
+
+      <SaveDialog
+        open={isSaveDialogOpen}
+        onCancel={() => setIsSaveDialogOpen(false)}
+        onConfirm={handleSaveConfirm}
+      />
     </main>
   );
 }

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { SEQUENCE_STORAGE_KEY, SEQUENCE_STORAGE_VERSION } from "./sequenceStore";
 
 const { init, previewNote } = vi.hoisted(() => ({
   init: vi.fn().mockResolvedValue(undefined),
@@ -28,6 +29,7 @@ function getFretboardCell(container: HTMLElement, stringIndex: number, fret: num
 describe("App recording flow", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
     init.mockClear();
     previewNote.mockClear();
   });
@@ -81,7 +83,7 @@ describe("App recording flow", () => {
 
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 
     const strip = screen.getByLabelText("Draft sequence");
     const items = within(strip).getAllByRole("listitem");
@@ -145,5 +147,97 @@ describe("App recording flow", () => {
 
     expect(previewNote).toHaveBeenCalledTimes(3);
     expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
+  });
+
+  it("saves a draft to localStorage, lists it, and reloads it on a fresh render", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_762_345_600_000);
+    const { container, unmount } = render(<App />);
+    const firstCell = getFretboardCell(container, 0, 0);
+    const secondCell = getFretboardCell(container, 0, 3);
+
+    expect(
+      screen.getByText("No sequences yet. Press Record to create your first exercise."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    fireEvent.click(firstCell);
+    fireEvent.click(secondCell);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Save sequence" });
+    const nameInput = within(dialog).getByLabelText("Sequence name") as HTMLInputElement;
+
+    expect(nameInput.value).toBe("");
+
+    fireEvent.change(nameInput, { target: { value: "Warmup" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save sequence" }));
+
+    expect(screen.getByRole("button", { name: "Record" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Save sequence" })).not.toBeInTheDocument();
+
+    const savedList = screen.getByLabelText("Saved sequences");
+    const rows = within(savedList).getAllByRole("listitem");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Warmup");
+    expect(rows[0]).toHaveTextContent("2 steps");
+    expect(rows[0]).toHaveTextContent("just now");
+
+    unmount();
+    render(<App />);
+
+    const reloadedList = screen.getByLabelText("Saved sequences");
+
+    expect(within(reloadedList).getByText("Warmup")).toBeInTheDocument();
+    expect(screen.queryByText("No sequences yet. Press Record to create your first exercise.")).not
+      .toBeInTheDocument();
+
+    nowSpy.mockRestore();
+  });
+
+  it("shows an inline error for duplicate names and cancel keeps the draft intact", () => {
+    window.localStorage.setItem(
+      SEQUENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: SEQUENCE_STORAGE_VERSION,
+        sequences: [
+          {
+            id: "saved-1",
+            name: "Warmup",
+            steps: [{ string: 0, fret: 0 }],
+            bpm: 80,
+            createdAt: 1_762_345_500_000,
+          },
+        ],
+      }),
+    );
+
+    const { container } = render(<App />);
+    const firstCell = getFretboardCell(container, 0, 0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    fireEvent.click(firstCell);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Save sequence" });
+    const nameInput = within(dialog).getByLabelText("Sequence name");
+
+    fireEvent.change(nameInput, { target: { value: " warmup " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save sequence" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "A sequence with that name already exists.",
+    );
+    expect(screen.getByRole("dialog", { name: "Save sequence" })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Save sequence" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Draft sequence")).toBeInTheDocument();
   });
 });
